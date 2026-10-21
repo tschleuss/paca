@@ -1,0 +1,59 @@
+{
+	admin off
+	auto_https disable_redirects
+}
+
+https://{$PACA_HOST} {
+	tls internal
+	encode gzip
+	# Preserve access-check ordering ahead of every handle block.
+	route {
+		@outside not remote_ip {$LAN_CIDR} 127.0.0.0/8 ::1
+		respond @outside "LAN access only" 403
+		header {
+			X-Frame-Options "DENY"
+			X-Content-Type-Options "nosniff"
+			Referrer-Policy "same-origin"
+			Permissions-Policy "camera=(), microphone=(), geolocation=()"
+			-Server
+		}
+		@notStorage not path /storage/*
+		request_body @notStorage {
+			max_size 10MB
+		}
+		handle_path /storage/* {
+			request_body {
+				max_size 100MB
+			}
+			reverse_proxy rustfs:9000 {
+				header_up Host rustfs:9000
+			}
+		}
+		handle_path /ws/* {
+			reverse_proxy realtime:3001
+		}
+		# Installed plugin bundles run code in browsers and MCP clients.
+		# Keep plugins absent in the pilot; these routes support future reviewed ones.
+		handle_path /plugins/* {
+			root * /var/www/plugins
+			file_server
+		}
+		handle_path /plugins-mcp/* {
+			root * /var/www/plugins-mcp
+			file_server
+		}
+		handle_path /plugins-skills/* {
+			root * /var/www/plugins-skills
+			file_server
+		}
+		handle /api/* {
+			reverse_proxy api:8080
+		}
+		@runner path /agent-bridge/* /environments/*
+		respond @runner "Agent execution is hosted on workstations" 503
+		handle {
+			reverse_proxy web:3000
+		}
+	}
+
+}

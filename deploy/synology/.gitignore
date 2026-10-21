@@ -1,0 +1,8 @@
+.env
+state/
+backups/
+migration/private/
+agents/*.env
+agents/*.crt
+agents/*.pem
+.backup-lock/
