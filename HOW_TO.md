@@ -1,5 +1,7 @@
 # Deploy Paca privately on the Synology DS1821+
 
+For the newer setup running on this Mac with OrbStack, blocked outbound connections and encrypted NAS backups, use [the OrbStack guide](deploy/orbstack/README.md). The instructions below deploy directly onto the NAS.
+
 Start with [the research and security review](deploy/synology/REVIEW.md). Recommendation: **evaluation only for now; keep primary work in Trello**. The current image scans report high-severity findings across the stack, with some critical records. A LAN pilot with disposable data and workstation agents is feasible, but this bundle is not a security clearance for production migration. This setup deliberately leaves Paca's built-in agent execution and environments unavailable.
 
 The fork is https://github.com/tschleuss/paca, branch `synology-lan`. Local checkout: `/Users/tschleuss/Documents/Repositories/paca`. It is based on upstream **v0.19.1**, not the moving `master` branch. Our additions live under `deploy/synology/` so upstream merges are easier. The NAS uses released images; editing application source in the fork does not change those images. Application code modifications require building and pinning your own images.

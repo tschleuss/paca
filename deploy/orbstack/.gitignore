@@ -1,0 +1,6 @@
+.env
+secrets/
+backups/
+logs/
+.operation-lock
+backup-status.json

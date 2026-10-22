@@ -1,0 +1,8 @@
+.env
+secrets
+backups
+logs
+__pycache__
+.git
+.operation-lock
+backup-status.json
