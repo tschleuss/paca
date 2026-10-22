@@ -48,7 +48,7 @@ services:
     environment:
       POSTGRES_DB: paca
       POSTGRES_USER: paca
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/init.sh}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python3 paca.py init}
     volumes: ["postgres_data:/var/lib/postgresql/data"]
     healthcheck:
       test: [CMD-SHELL, "pg_isready -U paca -d paca"]
@@ -80,8 +80,8 @@ services:
     mem_limit: 1536m
     cpus: 1.0
     environment:
-      RUSTFS_ACCESS_KEY: ${STORAGE_ACCESS_KEY_ID:?Run scripts/init.sh}
-      RUSTFS_SECRET_KEY: ${STORAGE_SECRET_ACCESS_KEY:?Run scripts/init.sh}
+      RUSTFS_ACCESS_KEY: ${STORAGE_ACCESS_KEY_ID:?Run python3 paca.py init}
+      RUSTFS_SECRET_KEY: ${STORAGE_SECRET_ACCESS_KEY:?Run python3 paca.py init}
       RUSTFS_VOLUMES: /data/rustfs0
       RUSTFS_ADDRESS: 0.0.0.0:9000
       RUSTFS_CONSOLE_ENABLE: "false"
@@ -104,17 +104,17 @@ services:
       ENV: production
       PORT: "8080"
       GOMEMLIMIT: 384MiB
-      DATABASE_URL: postgres://paca:${POSTGRES_PASSWORD:?Run scripts/init.sh}@127.0.0.1:5432/paca?sslmode=disable
+      DATABASE_URL: postgres://paca:${POSTGRES_PASSWORD:?Run python3 paca.py init}@127.0.0.1:5432/paca?sslmode=disable
       REDIS_URL: redis://127.0.0.1:6379/0
-      JWT_SECRET: ${JWT_SECRET:?Run scripts/init.sh}
+      JWT_SECRET: ${JWT_SECRET:?Run python3 paca.py init}
       JWT_ACCESS_TTL: 15m
       JWT_REFRESH_TTL: 168h
       COOKIE_SECURE: "true"
       AUTH_RATE_LIMIT_PER_MINUTE: "10"
       ADMIN_USERNAME: ${ADMIN_USERNAME:-pacaadmin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Run scripts/init.sh}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Run scripts/init.sh}
-      AI_AGENT_INTERNAL_KEY: ${INTERNAL_API_KEY:?Run scripts/init.sh}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Run python3 paca.py init}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Run python3 paca.py init}
+      AI_AGENT_INTERNAL_KEY: ${INTERNAL_API_KEY:?Run python3 paca.py init}
       AI_AGENT_URL: http://127.0.0.1:9
       PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL}
       CORS_ORIGINS: ${PUBLIC_URL:?Set PUBLIC_URL}
@@ -123,8 +123,8 @@ services:
       STORAGE_PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL}/storage
       STORAGE_REGION: us-east-1
       STORAGE_BUCKET: paca
-      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:?Run scripts/init.sh}
-      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:?Run scripts/init.sh}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:?Run python3 paca.py init}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:?Run python3 paca.py init}
       STORAGE_USE_SSL: "false"
       PLUGINS_WASM_DIR: /plugins
       PLUGINS_FRONTEND_DIR: /plugins-frontend
