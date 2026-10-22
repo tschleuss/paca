@@ -68,6 +68,8 @@ Each instance has its own directory and target marker. The job confirms that `/V
 
 A backup briefly stops application writers, creates a PostgreSQL custom-format dump, stops PostgreSQL, and snapshots the Docker volumes. It restarts the existing containers without replacing the guarded namespace. The encrypted bundle includes database files/dump, attachment bytes, Valkey data, plugins, Caddy CA/certificates, application `.env`, deployment files and recovery metadata. This is a **full backup**, not an incremental one. Duration/storage grow with the data.
 
+Local migration exports, plans and ID journals under the installed `migrations/` directory are also included in the encrypted configuration bundle. Transient `browser-cookies*` and `*.lock` files are excluded. See the repository's `deploy/synology/migration/HOW_TO.md` for the Stash migration and why no sprint is required.
+
 The bundle is encrypted with **age** before leaving the Mac. The NAS receives `.tar.age` archives and SHA-256 checksums. A copy is written with a partial name, read back and verified, then renamed. If the NAS is unavailable, an encrypted local archive remains queued; the job records that NAS delivery is pending and retries on the next backup or mount. No plaintext archive is copied to the NAS.
 
 **Save `secrets/backup.agekey` somewhere separate from this Mac**, such as your password manager's secure file storage. That is the recovery identity. It is deliberately **not included inside its own encrypted backup**. Without it, NAS backups cannot be decrypted after losing the Mac. The public `backup.recipient` cannot decrypt anything.

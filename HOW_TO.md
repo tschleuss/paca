@@ -203,7 +203,9 @@ Paca MCP does not automatically dispatch work to idle agents. Keep your existing
 
 ## 6. Migrate Trello safely
 
-**Do not cut over primary work until the image findings in REVIEW.md are resolved or individually assessed with adequate evidence.** The migration steps below are prepared for trial data and a later cutover. No live migration was performed. Workspaces are not a one-to-one data model match: Paca currently presents a workspace/instance with projects, while Trello has multiple workspaces containing boards. Start with **one Paca project per Trello board**, named with a workspace prefix. This does not preserve Trello workspace privacy as a separate security boundary: configure project roles explicitly. Use separate Paca instances if separate administrative isolation is required.
+**OrbStack/Stash update (2026-10-22):** the Stash export has now been imported into the local OrbStack instance with native comments and interactive checklists. See [the current Stash migration guide](deploy/synology/migration/HOW_TO.md) for verified counts, the board without a sprint, private recovery records and the richer importer. Agent configuration has not been switched. The older NAS/text-only procedure below remains a separate reference.
+
+**Do not cut over primary work until the image findings in REVIEW.md are resolved or individually assessed with adequate evidence.** The NAS migration steps below were originally prepared for trial data and a later cutover; the OrbStack/Stash import is documented separately above. Workspaces are not a one-to-one data model match: Paca currently presents a workspace/instance with projects, while Trello has multiple workspaces containing boards. Start with **one Paca project per Trello board**, named with a workspace prefix. This does not preserve Trello workspace privacy as a separate security boundary: configure project roles explicitly. Use separate Paca instances if separate administrative isolation is required.
 
 | Trello item | Destination / treatment |
 |---|---|

@@ -213,6 +213,11 @@ def backup():
         if (BASE / 'VALIDATION.md').exists():
             shutil.copyfile(BASE / 'VALIDATION.md', metadata / 'VALIDATION.md')
         shutil.copytree(BASE / 'scripts', metadata / 'scripts')
+        # Migration exports, plans and ID journals support later reconciliation.
+        # Browser authentication files are transient and never belong in recovery.
+        if (BASE / 'migrations').is_dir():
+            shutil.copytree(BASE / 'migrations', metadata / 'migrations',
+                            ignore=shutil.ignore_patterns('browser-cookies*', '*.lock'))
         shutil.copyfile(KEYS / 'instance-id', metadata / 'instance-id')
         private_json(metadata / 'backup-info.json', {'time': status['attempted_at'], 'image': TOOLS,
                      'docker_context': 'orbstack', 'recovery_key': 'NOT included; use separately saved backup.agekey'})
