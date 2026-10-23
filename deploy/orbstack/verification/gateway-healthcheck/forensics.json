@@ -1,0 +1,15 @@
+{
+  "observed_gateway_health": "unhealthy",
+  "docker_accounted_tasks": 252,
+  "task_limit": 256,
+  "zombie_children": 246,
+  "zombie_command": "ssl_client",
+  "zombie_parent_pid": 1,
+  "pid1_command": "caddy",
+  "healthcheck_error": "OCI runtime exec failed: exec failed: unable to start container process: procReady not received",
+  "healthcheck_interval_seconds": 5,
+  "init_before_fix": null,
+  "log_observation": "Local certificate renewal succeeded; captured gateway logs did not identify an internet requirement.",
+  "inspection": "Separate disposable container shared only the gateway PID namespace; no network, credentials or production mounts. docker top omitted the zombies.",
+  "raw_logs": "Retained privately outside Git; excluded from this evidence."
+}

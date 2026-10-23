@@ -127,6 +127,34 @@ Automatic Docker restart policies are disabled: daemon restart policies do not h
 
 All app containers depend on the firewall keeper. When updating/rebuilding the keeper, stop the **whole** stack and recreate it; do not independently replace the keeper while leaving app containers in an older network namespace. Updating only the keeper does not move existing processes to a new namespace. `verify-network` catches mismatched namespaces.
 
+### Gateway health checks and process reaping
+
+Keep `gateway.init: true`. The pinned Alpine image's BusyBox `wget` HTTPS probe
+leaves an adopted `ssl_client` child behind. Caddy as PID 1 does not reap those
+children, so successful probes gradually fill the 256-task limit. Eventually
+Docker health checks/exec fail with `procReady not received`, while HTTPS may
+still respond. A restart alone clears the accumulated children but repeats the
+failure later. Docker's init process reaps them without changing the probe,
+image, limits, capabilities or outbound firewall.
+
+This is independent of the internet block: disposable offline and bridge controls
+both reproduce it. The corrected offline container survives 300 consecutive TLS
+probes with no zombies. Reproduce/check using the already installed pinned image:
+
+```sh
+python3 test_gateway_healthcheck.py --context orbstack --probes 300
+```
+
+The regression creates and removes its own containers, with synthetic certificates
+and a local responder. It uses no credentials, production volumes or published
+ports; it leaves the running stack untouched. It intentionally exhausts only its
+small disposable negative-control containers. Details and recorded evidence:
+[`verification/gateway-healthcheck/`](verification/gateway-healthcheck/README.md).
+
+Reinitializations must use a source branch containing the fix; refreshing from
+an older checkout would reinstall the old gateway configuration. Recreate the
+gateway to apply `init`; an ordinary container restart cannot change that option.
+
 Before an update, create/verify a backup, review upstream changes and migration requirements, then update explicit image digests and the matching workstation MCP client. Do not use `latest`, Watchtower or the upstream installer on this customized directory. Do not run an old API image against a newly migrated database to roll back: restore the complete pre-update backup instead.
 
 To install source updates, stop the stack, run `python3 paca.py init` from the repository source directory to refresh installed code/configuration and rebuild tools, then start and verify it. `init` preserves private runtime state.

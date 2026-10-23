@@ -1,0 +1,45 @@
+{
+  "successful_live_probes": 300,
+  "seconds": 32.38,
+  "zombies_after": 0,
+  "process_counts": {
+    "S:docker-init": 1,
+    "S:caddy": 1,
+    "R:ps": 1
+  },
+  "gateway": {
+    "init": true,
+    "pids_limit": 256,
+    "cap_drop": [
+      "ALL"
+    ],
+    "cap_add": [
+      "CAP_NET_BIND_SERVICE"
+    ],
+    "health": "healthy",
+    "network": "container:4b944b18a116d39809a58569074b071c576b750505e25c5e22d7d1392515e14b"
+  },
+  "host_https_ca_verified_status": 200,
+  "other_container_ids_unchanged": [
+    "api",
+    "network-guard",
+    "postgres",
+    "realtime",
+    "rustfs",
+    "valkey",
+    "web"
+  ],
+  "network_verification": [
+    "loopback API succeeds",
+    "new public IPv4/IPv6 connections blocked",
+    "public/embedded DNS blocked",
+    "all application network namespaces match guard",
+    "guard retained no capabilities"
+  ],
+  "limits": "Accelerated probes plus current live health; no claim of a multi-hour production soak.",
+  "scoped_worker_mcp_reads": {
+    "get_project": "passed",
+    "get_task": "passed",
+    "mutations": "none"
+  }
+}
