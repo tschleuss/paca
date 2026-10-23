@@ -180,6 +180,9 @@ services:
   gateway:
     <<: *common
     image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    # BusyBox wget's HTTPS helper can outlive a probe. Reap adopted ssl_client
+    # children instead of letting zombies consume the container's task limit.
+    init: true
     mem_limit: 128m
     cpus: 0.5
     cap_drop: [ALL]

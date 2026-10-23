@@ -1,0 +1,102 @@
+{
+  "gateway_image": "caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f",
+  "healthcheck": [
+    "CMD",
+    "wget",
+    "-q",
+    "--no-check-certificate",
+    "--spider",
+    "https://localhost/api/healthz"
+  ],
+  "fixture_pids_limit": 64,
+  "cases": [
+    {
+      "case": "offline-no-init",
+      "network": "none",
+      "init": false,
+      "successful_probes": 53,
+      "failure": {
+        "probe": 54,
+        "exit_code": 128,
+        "error": "OCI runtime exec failed: exec failed: unable to start container process: procReady not received"
+      },
+      "baseline": {
+        "zombies": 1,
+        "pid1": "caddy",
+        "process_counts": {
+          "S:caddy": 1,
+          "Z:ssl_client": 1,
+          "R:ps": 1
+        }
+      },
+      "after": {
+        "zombies": 54,
+        "pid1": "caddy",
+        "process_counts": {
+          "S:caddy": 1,
+          "Z:ssl_client": 54,
+          "R:ps": 1
+        }
+      },
+      "seconds": 5.81
+    },
+    {
+      "case": "bridge-no-init",
+      "network": "bridge",
+      "init": false,
+      "successful_probes": 53,
+      "failure": {
+        "probe": 54,
+        "exit_code": 128,
+        "error": "OCI runtime exec failed: exec failed: unable to start container process: procReady not received"
+      },
+      "baseline": {
+        "zombies": 1,
+        "pid1": "caddy",
+        "process_counts": {
+          "S:caddy": 1,
+          "Z:ssl_client": 1,
+          "R:ps": 1
+        }
+      },
+      "after": {
+        "zombies": 54,
+        "pid1": "caddy",
+        "process_counts": {
+          "S:caddy": 1,
+          "Z:ssl_client": 54,
+          "R:ps": 1
+        }
+      },
+      "seconds": 5.84
+    },
+    {
+      "case": "offline-configured",
+      "network": "none",
+      "init": true,
+      "successful_probes": 300,
+      "failure": null,
+      "baseline": {
+        "zombies": 0,
+        "pid1": "docker-init",
+        "process_counts": {
+          "S:docker-init": 1,
+          "S:caddy": 1,
+          "R:ps": 1
+        }
+      },
+      "after": {
+        "zombies": 0,
+        "pid1": "docker-init",
+        "process_counts": {
+          "S:docker-init": 1,
+          "S:caddy": 1,
+          "R:ps": 1
+        }
+      },
+      "seconds": 31.77
+    }
+  ],
+  "passed": true,
+  "limits": "Local synthetic TLS responder; no Paca API/data or host ports. Live-stack verification is separate."
+}
