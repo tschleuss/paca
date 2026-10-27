@@ -1,10 +1,10 @@
 {
   "name": "paca-lan-mcp-client",
-  "version": "0.19.1-nas.1",
+  "version": "0.19.2-nas.1",
   "private": true,
   "description": "Reviewed local Paca MCP runtime with security dependency overrides",
   "dependencies": {
-    "@paca-ai/paca-mcp": "0.19.1"
+    "@paca-ai/paca-mcp": "0.19.2"
   },
   "overrides": {
     "@modelcontextprotocol/sdk": "1.32.1",

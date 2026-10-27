@@ -1,5 +1,5 @@
 # Local OrbStack deployment. Runtime has no new outbound network access.
-# Application image review and limitations: ../synology/REVIEW.md.
+# Application pins: images.lock.json; baseline review: ../synology/REVIEW.md.
 name: paca-orbstack
 x-common: &common
   restart: "no"
@@ -97,7 +97,7 @@ services:
 
   api:
     <<: *common
-    image: pacaai/paca-api:0.19.1@sha256:4cecd02d1c4bdfc126f6683ad2e64e54cdee78afa90f3f5620584a320ac68947
+    image: pacaai/paca-api:0.19.2@sha256:0012535146762552effd1843657bdffbe13c10164c583d95800d9aeb065ceda3
     mem_limit: 512m
     cpus: 1.0
     environment:
@@ -148,7 +148,7 @@ services:
 
   web:
     <<: *common
-    image: pacaai/paca-web:0.19.1@sha256:b4ad3de67d5c9d458ccb1ae4f354e43d2f46e050356abb93ea6a1bd6e61a89af
+    image: pacaai/paca-web:0.19.2@sha256:b9c6ae286ecc90cda5a48bab668cda7a05820ddecd71d5fdcfc12787a831ecbc
     mem_limit: 128m
     cpus: 0.5
     read_only: true
@@ -161,7 +161,7 @@ services:
 
   realtime:
     <<: *common
-    image: pacaai/paca-realtime:0.19.1@sha256:d818303f9affd52700f12dca87013bff39c78fb0902ee6cd851728b2e2b00317
+    image: pacaai/paca-realtime:0.19.2@sha256:7f38eb04f0e7a60a57bae91f936a06c32243599e7a88892fb12e856b8945c1c2
     mem_limit: 256m
     cpus: 0.5
     cap_drop: [ALL]

@@ -1,6 +1,6 @@
 # Paca on OrbStack, with outbound access blocked
 
-This runs Paca on this Mac at **https://localhost:8443**. The NAS holds encrypted backups; it does not run the application. It uses Docker Compose because Paca needs several services. `Dockerfile` builds the small firewall/backup tools image; the application images retain the previously reviewed digest pins.
+This runs Paca on this Mac at **https://localhost:8443**. The NAS holds encrypted backups; it does not run the application. It uses Docker Compose because Paca needs several services. `Dockerfile` builds the small firewall/backup tools image. Application images are pinned to **v0.19.2**; `images.lock.json` records their registry digests and source revision. Infrastructure images retain the prior pins.
 
 ```sh
 cd /Users/tschleuss/Documents/Repositories/paca/deploy/orbstack
@@ -46,7 +46,7 @@ Only this Mac's loopback port is published. Other LAN computers cannot reach it 
 
 Docker/build tooling on the **Mac** still needs internet access to download/build/update images. Running local agents and browsers are also outside this container firewall. Their AI provider requests are not blocked by it. A compromised host, Docker daemon, kernel/container escape, or an operator attaching another network is outside this protection. Containers can return application data to a client that connects to them; this is outbound-connection control, not a data-loss-prevention system.
 
-The custom tools image initially downloads Alpine packages during build. App image pins are unchanged from the previous review, which recorded dependency vulnerabilities. Network isolation reduces opportunities for outbound access; it does not repair application vulnerabilities. See [the earlier review](https://github.com/tschleuss/paca/blob/synology-lan/deploy/synology/REVIEW.md).
+The custom tools image initially downloads Alpine packages during build. The v0.19.2 update includes upstream dependency fixes but is not a repeat of the prior vulnerability audit. Network isolation reduces opportunities for outbound access; it does not repair application vulnerabilities. See [the earlier review](https://github.com/tschleuss/paca/blob/synology-lan/deploy/synology/REVIEW.md).
 
 ### Domain or port allowlists
 
@@ -155,7 +155,9 @@ Reinitializations must use a source branch containing the fix; refreshing from
 an older checkout would reinstall the old gateway configuration. Recreate the
 gateway to apply `init`; an ordinary container restart cannot change that option.
 
-Before an update, create/verify a backup, review upstream changes and migration requirements, then update explicit image digests and the matching workstation MCP client. Do not use `latest`, Watchtower or the upstream installer on this customized directory. Do not run an old API image against a newly migrated database to roll back: restore the complete pre-update backup instead.
+Before an update, create/verify a backup, review upstream changes and migration requirements, then update explicit image digests in `compose.yaml` and `images.lock.json` and the matching workstation MCP client in `../synology/agents/`. The Synology evaluation's own Compose and image lock remain a separate historical deployment. Do not use `latest`, Watchtower or the upstream installer on this customized directory. Do not run an old API image against a newly migrated database to roll back: restore the complete pre-update backup instead.
+
+The fork's source branch can track upstream `master` ahead of a release. Running OrbStack uses the released image pins, not the source checkout. The v0.19.2 upgrade adds migrations 71 (OpenCode provider constraint) and 72 (subtask lookup index); later Git integration and notification migrations in `master` are not applied by these images.
 
 To install source updates, stop the stack, run `python3 paca.py init` from the repository source directory to refresh installed code/configuration and rebuild tools, then start and verify it. `init` preserves private runtime state.
 

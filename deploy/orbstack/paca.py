@@ -54,7 +54,7 @@ def private_json(path, value):
 def sync_runtime_source():
     if SOURCE == BASE:
         return
-    for name in ['.env.example', '.dockerignore', 'compose.yaml', 'Caddyfile', 'Dockerfile', 'paca.py', 'README.md']:
+    for name in ['.env.example', '.dockerignore', 'compose.yaml', 'images.lock.json', 'Caddyfile', 'Dockerfile', 'paca.py', 'README.md']:
         shutil.copyfile(SOURCE / name, BASE / name)
     shutil.copytree(SOURCE / 'scripts', BASE / 'scripts', dirs_exist_ok=True)
     if (SOURCE / 'VALIDATION.md').exists():
@@ -210,8 +210,9 @@ def backup():
         metadata.mkdir()
         for name in ['.env', 'compose.yaml', 'Caddyfile', 'Dockerfile', 'paca.py', 'README.md']:
             shutil.copyfile(BASE / name, metadata / name)
-        if (BASE / 'VALIDATION.md').exists():
-            shutil.copyfile(BASE / 'VALIDATION.md', metadata / 'VALIDATION.md')
+        for name in ['VALIDATION.md', 'images.lock.json']:
+            if (BASE / name).exists():
+                shutil.copyfile(BASE / name, metadata / name)
         shutil.copytree(BASE / 'scripts', metadata / 'scripts')
         # Migration exports, plans and ID journals support later reconciliation.
         # Browser authentication files are transient and never belong in recovery.
