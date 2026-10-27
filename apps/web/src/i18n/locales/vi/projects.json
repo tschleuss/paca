@@ -10,6 +10,7 @@
 				"taskStatuses": "Trạng thái nhiệm vụ",
 				"taskTypes": "Loại nhiệm vụ",
 				"customFields": "Trường tùy chỉnh",
+				"git": "Git",
 				"jev": "Jev AI",
 				"dangerZone": "Khu vực nguy hiểm",
 				"plugins": "Plugin",
@@ -20,6 +21,133 @@
 					"title": "Bạn không có quyền xem tab này",
 					"description": "Hãy yêu cầu chủ sở hữu hoặc quản trị viên dự án cấp cho bạn quyền truy cập vào {{pluginName}}."
 				}
+			}
+		},
+		"git": {
+			"title": "Repository Git",
+			"description": "Các repository mà agent của dự án này có thể làm việc, thông qua danh tính Git dùng chung của workspace.",
+			"empty": {
+				"title": "Chưa liên kết kho mã nào",
+				"description": "Liên kết một kho mã để tác nhân của dự án đọc mã, mở pull request và phản hồi các lượt nhắc.",
+				"readOnly": "Bạn cần quyền ghi Git trong dự án này để liên kết kho mã.",
+				"linkNeedsAdmin": "Liên kết kho mã cũng cần quyền của không gian làm việc để quản lý danh tính Git. Hãy nhờ quản trị viên."
+			},
+			"noProviders": "Chưa cài nhà cung cấp Git nào. Hãy nhờ quản trị viên cài đặt.",
+			"link": {
+				"platform": "Nền tảng",
+				"repository": "Repository",
+				"placeholder": "chủ-sở-hữu/tên hoặc URL repository",
+				"button": "Liên kết",
+				"open": "Liên kết kho mã",
+				"cancel": "Hủy",
+				"help": "Dán URL kho mã hoặc nhập chủ sở hữu/tên.",
+				"connectAction": "Mở tích hợp Git"
+			},
+			"unlink": {
+				"button": "Hủy liên kết",
+				"confirm": "Xác nhận hủy",
+				"cancel": "Hủy"
+			},
+			"resumed": "Chào mừng trở lại. Hãy liên kết {{repository}} ngay.",
+			"access": {
+				"title": "Danh tính dùng chung không thấy repository này",
+				"description": "Danh tính {{provider}} chỉ thấy repository của các tài khoản mà nó được cài đặt. Hãy cài đặt trên {{owner}} (bạn sẽ đến nền tảng rồi quay lại đây), sau đó liên kết lại.",
+				"descriptionNoOwner": "Danh tính {{provider}} chỉ thấy repository của các tài khoản mà nó được cài đặt. Hãy chọn nơi cài đặt (bạn sẽ đến nền tảng rồi quay lại đây), sau đó liên kết lại.",
+				"button": "Cài đặt trên {{owner}}",
+				"buttonNoOwner": "Chọn nơi cài đặt"
+			},
+			"errors": {
+				"generic": "Đã xảy ra lỗi. Vui lòng thử lại.",
+				"setupInvalid": "Liên kết này không hợp lệ, đã hết hạn hoặc đã được dùng. Hãy bắt đầu lại.",
+				"identityExists": "Đã có một danh tính ở đây.",
+				"publicUrlRequired": "URL công khai của hệ thống (PUBLIC_URL) chưa được cấu hình.",
+				"providerUnavailable": "Plugin nhà cung cấp Git không khả dụng.",
+				"providerRejected": "Nền tảng đã từ chối yêu cầu.",
+				"notFound": "Không tìm thấy.",
+				"accessNotGranted": "Danh tính dùng chung không thấy repository này.",
+				"noIdentity": "Chưa có danh tính Git dùng chung cho nền tảng này. Quản trị viên workspace thiết lập tại Quản trị → Git.",
+				"alreadyLinked": "Repository này đã được liên kết với dự án."
+			},
+			"triggerKinds": {
+				"mention": {
+					"label": "Được nhắc",
+					"description": "Ai đó nhắc đến bot trong bình luận, review hoặc mô tả."
+				},
+				"own_cr_feedback": {
+					"label": "Phản hồi về pull request của nó",
+					"description": "Có review hoặc bình luận trên pull request do tác nhân này mở."
+				},
+				"ci_failure": {
+					"label": "CI lỗi trên pull request của nó",
+					"description": "Một kiểm tra thất bại ở commit mới nhất của pull request do tác nhân này mở (tối đa vài lần thử)."
+				},
+				"review_request": {
+					"label": "Được yêu cầu review",
+					"description": "Bot được yêu cầu làm người review, khi nền tảng cho phép."
+				},
+				"assignment": {
+					"label": "Được giao việc",
+					"description": "Bot được giao một issue hoặc pull request, khi nền tảng cho phép."
+				},
+				"label": {
+					"label": "Nhãn",
+					"description": "Nhãn \"paca\" (hoặc \"paca:<handle của tác nhân>\") được thêm vào issue hoặc pull request."
+				},
+				"auto_review": {
+					"label": "Review mọi pull request",
+					"description": "Tự động review mỗi pull request mới. Tắt cho đến khi bạn bật; bỏ qua bản nháp và pull request do chính tác nhân mở."
+				}
+			},
+			"repositories": {
+				"title": "Kho mã",
+				"description": "Tác nhân của dự án này có thể làm việc trên các kho mã sau.",
+				"mention": "Nhắc trong bình luận:"
+			},
+			"automation": {
+				"title": "Tự động hóa",
+				"description": "Quyết định cách hoạt động trên Git khởi động tác nhân của bạn.",
+				"locked": "Hãy liên kết một kho mã trước. Các cài đặt này áp dụng cho các kho mã đã liên kết với dự án.",
+				"responder": {
+					"label": "Tác nhân phản hồi mặc định",
+					"none": "Không có tác nhân mặc định",
+					"help": "Phản hồi các lượt nhắc, nhãn và yêu cầu đánh giá không chỉ định tác nhân. Thêm \"agent:<handle>\" vào lượt nhắc để chọn tác nhân khác.",
+					"warning": "Nếu không có tác nhân mặc định, các lượt nhắc không chỉ định tác nhân sẽ bị bỏ qua."
+				},
+				"minPermission": {
+					"label": "Quyền tối thiểu để khởi động tác nhân",
+					"help": "Người có quyền thấp hơn trên kho mã vẫn bình luận được, nhưng tác nhân sẽ không chạy."
+				},
+				"permission": {
+					"read": "Đọc",
+					"triage": "Phân loại",
+					"write": "Ghi",
+					"maintain": "Bảo trì",
+					"admin": "Quản trị"
+				},
+				"paused": {
+					"label": "Tạm dừng tự động hóa",
+					"help": "Khi tạm dừng, không hoạt động Git nào khởi động tác nhân. Các lượt chạy đang diễn ra vẫn hoàn tất."
+				},
+				"save": "Lưu",
+				"saved": "Đã lưu.",
+				"advanced": "Nâng cao"
+			},
+			"usage": {
+				"title": "Cách sử dụng",
+				"description": "Ba cách khởi động tác nhân từ nền tảng Git của bạn.",
+				"mention": {
+					"title": "Nhắc đến bot",
+					"description": "Bình luận trong issue hoặc pull request. Tác nhân mặc định sẽ trả lời."
+				},
+				"pick": {
+					"title": "Chọn tác nhân",
+					"description": "Thêm agent:<handle> vào lượt nhắc để chọn tác nhân trả lời."
+				},
+				"label": {
+					"title": "Thêm nhãn",
+					"description": "Thêm nhãn \"paca\" vào issue hoặc pull request."
+				},
+				"automatic": "Tác nhân cũng có thể tự khởi động, ví dụ để theo dõi pull request của mình hoặc đánh giá mọi pull request mới. Bật trong thẻ Git của từng tác nhân."
 			}
 		}
 	},
@@ -61,6 +189,7 @@
 			"acpProviderCodex": "Codex",
 			"acpProviderGeminiCli": "Gemini CLI",
 			"acpProviderGoose": "Goose",
+			"acpProviderOpenCode": "OpenCode",
 			"acpProviderCustom": "Tùy chỉnh…",
 			"acpCommandLabel": "Lệnh",
 			"acpCommandPlaceholder": "npx -y my-acp-server",
@@ -154,6 +283,7 @@
 			"stepSkillMcpDescription": "Tạo khóa MCP riêng của agent này một lần, sau đó chạy cả hai lệnh bên dưới — để các lệnh gọi công cụ được ghi nhận là hoạt động của agent, không phải của bạn.",
 			"stepSkillMcpSkillLabel": "Cài đặt skill:",
 			"stepSkillMcpConnectLabel": "Kết nối máy chủ MCP:",
+			"stepSkillMcpConnectLabelConfig": "Thêm đoạn này vào {{file}} (gộp vào mục \"{{section}}\" nếu đã có):",
 			"step3NotAvailable": "Cài đặt tự động khả dụng cho Claude Code, Gemini CLI và Codex. {{provider}} chưa có trình cài đặt prompt tùy chỉnh nào được biết đến — các công cụ MCP của Paca bên dưới vẫn hoạt động mà không cần nó.",
 			"step3ViewContent": "Xem hướng dẫn skill",
 			"step4NoKeyYet": "Tạo một khóa để hiển thị các lệnh thiết lập.",
@@ -173,7 +303,8 @@
 				"skills": "Skill",
 				"envVars": "Môi trường",
 				"globalRole": "Vai trò toàn cục",
-				"activity": "Hoạt động"
+				"activity": "Hoạt động",
+				"git": "Git"
 			},
 			"globalRole": {
 				"title": "Vai trò toàn cục",
@@ -244,6 +375,7 @@
 				"acpProviderCodex": "Codex",
 				"acpProviderGeminiCli": "Gemini CLI",
 				"acpProviderGoose": "Goose",
+				"acpProviderOpenCode": "OpenCode",
 				"acpProviderCustom": "Tùy chỉnh…",
 				"acpCommandLabel": "Lệnh",
 				"acpCommandHint": "Lệnh cách nhau bằng dấu cách, dùng để khởi chạy máy chủ ACP của bạn.",
@@ -373,6 +505,69 @@
 			},
 			"system": {
 				"badge": "Hệ thống"
+			},
+			"git": {
+				"title": "Danh tính Git",
+				"description": "Mặc định agent này hoạt động qua danh tính Git dùng chung của workspace. Hãy cấp cho nó danh tính riêng để commit, pull request và bình luận của nó hiển thị dưới một bot khác, rồi cài đặt danh tính đó trên các tài khoản và tổ chức có repository mà nó làm việc.",
+				"providersUnavailable": "Không thể tải nhà cung cấp Git của dự án này.",
+				"noProviders": {
+					"title": "Chưa có nền tảng Git",
+					"description": "Hãy nhờ quản trị viên cài plugin nhà cung cấp Git và kết nối. Sau đó tác nhân có thể làm việc trên kho mã."
+				},
+				"ownIdentity": "Danh tính riêng",
+				"usesShared": "Dùng danh tính chung",
+				"singleIdentity": "Nền tảng này chỉ có một danh tính cho mỗi host nên dùng danh tính chung.",
+				"remove": "Gỡ bỏ",
+				"create": {
+					"title": "Tạo danh tính riêng cho tác nhân này",
+					"description": "Commit, pull request và bình luận của nó sẽ hiển thị dưới một bot riêng và mọi người có thể nhắc theo tên. Bạn phê duyệt trên nền tảng rồi cài đặt ngay.",
+					"button": "Tạo danh tính"
+				},
+				"askAdmin": "Hãy nhờ quản trị viên workspace tạo.",
+				"install": {
+					"label": "Cài đặt trên tài khoản hoặc tổ chức khác",
+					"placeholder": "tài khoản hoặc tổ chức (tùy chọn)",
+					"button": "Cài đặt",
+					"help": "Mở trang cài đặt của nền tảng. Để trống tên để chọn tài khoản tại đó.",
+					"title": "Cài đặt cho tài khoản hoặc tổ chức khác"
+				},
+				"triggers": {
+					"title": "Trình kích hoạt Git",
+					"description": "Sự kiện Git nào khởi động tác nhân này. Chỉ hiện các sự kiện mà nhà cung cấp Git đã cài có thể phát.",
+					"filters": {
+						"branches": "Chỉ các nhánh đích này",
+						"authors": "Chỉ các tác giả này",
+						"help": "Cách nhau bằng dấu phẩy. Để trống để áp dụng tất cả. Tác giả là bot phải có trong danh sách mới được review.",
+						"save": "Lưu bộ lọc"
+					},
+					"unsupported": "Các nền tảng Git đã kết nối không hỗ trợ.",
+					"groups": {
+						"requests": {
+							"title": "Phản hồi yêu cầu",
+							"description": "Khởi động khi ai đó gọi tác nhân này."
+						},
+						"followUp": {
+							"title": "Theo dõi pull request của chính nó",
+							"description": "Khởi động khi có sự kiện trên pull request do tác nhân này mở."
+						},
+						"proactive": {
+							"title": "Tự chủ hành động",
+							"description": "Khởi động mà không cần ai yêu cầu. Mặc định tắt."
+						}
+					}
+				},
+				"identity": {
+					"title": "Danh tính",
+					"description": "Tài khoản mà tác nhân này dùng trên từng nền tảng Git."
+				},
+				"own": {
+					"description": "Tác nhân này có bot riêng nên commit, pull request và bình luận của nó hiển thị dưới một tên riêng.",
+					"mention": "Nhắc bằng:"
+				},
+				"shared": {
+					"description": "Tác nhân này hoạt động qua bot dùng chung của workspace, giống các tác nhân khác."
+				},
+				"permissions": "Những gì tác nhân này làm được trên Git phụ thuộc vào vai trò trong dự án: quyền đọc và ghi lấy từ quyền Git của vai trò. Duyệt và hợp nhất pull request không được cấp theo mặc định."
 			}
 		},
 		"conversationView": {
@@ -893,6 +1088,22 @@
 			"projectExport": {
 				"label": "Xuất dữ liệu dự án",
 				"description": "Xuất công việc (kèm bình luận và hoạt động) và tài liệu của dự án này"
+			},
+			"gitRead": {
+				"label": "Xem Git",
+				"description": "Xem các kho mã được liên kết với dự án"
+			},
+			"gitWrite": {
+				"label": "Quản lý Git",
+				"description": "Liên kết và hủy liên kết kho mã, cấp quyền truy cập kho mã và cho phép tác nhân đẩy thay đổi"
+			},
+			"gitApprove": {
+				"label": "Phê duyệt yêu cầu thay đổi",
+				"description": "Phê duyệt pull request và merge request, có thể đáp ứng yêu cầu review bắt buộc. Bình luận và yêu cầu thay đổi chỉ cần quyền Quản lý Git."
+			},
+			"gitMerge": {
+				"label": "Hợp nhất yêu cầu thay đổi",
+				"description": "Hợp nhất pull request và merge request vào nhánh đích. Bảo vệ nhánh trên nền tảng vẫn được áp dụng."
 			}
 		},
 		"permissionGroups": {
@@ -908,7 +1119,8 @@
 			"environments": "Môi trường",
 			"annotations": "Annotations",
 			"workflows": "Tự động hóa",
-			"plugins": "Plugin"
+			"plugins": "Plugin",
+			"git": "Git"
 		}
 	},
 	"settings": {
@@ -1622,6 +1834,66 @@
 		"searchableList": {
 			"searchPlaceholder": "Tìm kiếm…",
 			"noResults": "Không có kết quả"
+		},
+		"git": {
+			"branches": "Nhánh",
+			"pullRequests": "Pull request",
+			"linkBranch": "Liên kết nhánh",
+			"newBranch": "Nhánh mới",
+			"linkPullRequest": "Liên kết pull request",
+			"noBranches": "Chưa có nhánh nào được liên kết.",
+			"noPullRequests": "Chưa có pull request nào được liên kết.",
+			"by": "bởi {{author}}",
+			"unlink": "Hủy liên kết",
+			"unlinkPullRequest": "Hủy liên kết pull request {{name}}",
+			"unlinkBranch": "Hủy liên kết nhánh {{name}}",
+			"copyCheckout": "Sao chép lệnh checkout",
+			"copy": "Sao chép",
+			"copied": "Đã sao chép",
+			"state": {
+				"open": "Đang mở",
+				"draft": "Bản nháp",
+				"merged": "Đã hợp nhất",
+				"closed": "Đã đóng"
+			},
+			"ci": {
+				"passing": "CI đạt",
+				"failing": "CI lỗi",
+				"pending": "CI đang chạy",
+				"failingNames": "Lỗi: {{names}}",
+				"counts": "{{passed}}/{{total}} kiểm tra đạt"
+			},
+			"forms": {
+				"selectRepository": "Chọn một kho mã…",
+				"cancel": "Hủy",
+				"pullRequest": "Pull request",
+				"pullRequestHint": "Dán liên kết pull request hoặc nhập số của nó.",
+				"willLink": "Sẽ liên kết {{what}} từ {{repository}}",
+				"repository": "Kho mã",
+				"linkPullRequest": "Liên kết pull request",
+				"existingBranch": "Nhánh có sẵn",
+				"branchHint": "Nhập tên nhánh hoặc dán liên kết đến nhánh.",
+				"linkBranch": "Liên kết nhánh",
+				"branchType": "Loại",
+				"branchName": "Tên nhánh",
+				"branchFrom": "Tạo từ",
+				"branchFromHint": "Tùy chọn — mặc định là nhánh mặc định của kho mã.",
+				"createBranch": "Tạo nhánh",
+				"orLocally": "Hoặc tạo cục bộ"
+			},
+			"errors": {
+				"notFound": "Không tìm thấy trong kho mã đó.",
+				"rejected": "Nền tảng Git đã từ chối yêu cầu cho kho mã này.",
+				"unavailable": "Nhà cung cấp Git tạm thời không khả dụng. Hãy thử lại.",
+				"noIdentity": "Không có danh tính Git nào có thể hoạt động trên kho mã này.",
+				"forbidden": "Bạn không có quyền thực hiện việc đó.",
+				"generic": "Đã xảy ra lỗi. Hãy thử lại.",
+				"repoNotLinked": "\"{{repository}}\" chưa được liên kết với dự án này.",
+				"selectRepository": "Chọn một kho mã.",
+				"invalidNumber": "Nhập một số hoặc dán liên kết.",
+				"branchRequired": "Nhập tên nhánh hoặc dán liên kết.",
+				"createRefused": "Nền tảng không thể tạo nhánh đó (tên có thể đã tồn tại hoặc không hợp lệ)."
+			}
 		}
 	},
 	"portForwardDetail": {
@@ -1793,6 +2065,19 @@
 		"backlog": {
 			"title": "Product Backlog",
 			"description": "Tất cả công việc chưa được gán vào sprint nào."
+		},
+		"subtasks": {
+			"expand": "Mở rộng {{n}} công việc con",
+			"collapse": "Thu gọn {{n}} công việc con",
+			"progress": "Hoàn thành {{done}}/{{n}} công việc con",
+			"loading": "Đang tải công việc con",
+			"loadError": "Không thể tải công việc con.",
+			"retry": "Thử lại",
+			"matching": "{{n}}/{{total}} công việc con khớp với bộ lọc hiện tại",
+			"noMatch": "Không có công việc con nào khớp với bộ lọc hiện tại",
+			"loadMore": "Tải thêm công việc con",
+			"add": "Thêm công việc con",
+			"addPlaceholder": "Tiêu đề công việc con"
 		}
 	},
 	"conversationsPage": {
@@ -1935,7 +2220,11 @@
 			"tagsFilter": {
 				"addTag": "Thêm thẻ",
 				"addTagPlaceholder": "Thêm thẻ..."
-			}
+			},
+			"subtasksLabel": "Công việc con",
+			"subtasksCollapsed": "Lồng nhau, thu gọn",
+			"subtasksExpanded": "Lồng nhau, mở rộng",
+			"subtasksHidden": "Ẩn (danh sách phẳng)"
 		},
 		"roadmap": {
 			"taskColumnLabel": "Nhiệm vụ",

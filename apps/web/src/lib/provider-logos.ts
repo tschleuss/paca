@@ -42,6 +42,7 @@ const ACP_PROVIDER_LOGOS: Record<string, string> = {
 	"claude-code": "/provider-logos/claude-code.svg",
 	codex: "/provider-logos/codex.svg",
 	"gemini-cli": "/provider-logos/gemini-cli.svg",
+	opencode: "/provider-logos/opencode.svg",
 };
 
 function lookupProviderLogo(

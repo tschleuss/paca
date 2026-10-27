@@ -92,7 +92,13 @@
 		@wasm path *.wasm
 		header @wasm Content-Type "application/wasm"
 
-		header Cache-Control "public, max-age=900, immutable"
+		# remoteEntry.js keeps its name across builds but not its contents (it
+		# lists the exposed components and hashed chunks), so it must be
+		# revalidated, not cached as immutable; the hashed chunks can be.
+		@remote_entry path */remoteEntry.js
+		@fingerprinted not path */remoteEntry.js
+		header @fingerprinted Cache-Control "public, max-age=900, immutable"
+		header @remote_entry Cache-Control "no-cache"
 		file_server
 	}
 

@@ -89,7 +89,7 @@ If a page needs to reflect state that can change from outside the current tab �
 The established pattern, followed throughout `apps/web`:
 
 1. `services/api` publishes a domain event to the `paca.events` Valkey Pub/Sub channel (`internal/platform/messaging.Publisher.Publish`) at the point a state transition is persisted — see `internal/events/topics.go` for the topic namespace convention (`<domain>.<verb>`, e.g. `sprint.updated`, `environment.status_changed`).
-2. `services/realtime` routes the event to a permission-gated, namespace-scoped Socket.IO room (`internal/permissions.ts`'s `NAMESPACE_PERMISSIONS`/`eventNamespace`, `internal/subscriber.ts`).
+2. `services/realtime` delivers the event to the sockets of a namespace-scoped Socket.IO room whose account the API confirms may read the event's resource, using the `authz` descriptor `events.AuthzFor` derives (`src/subscriber.ts`, `src/access.ts`; a new topic needs a rule in `AuthzFor`, which `TestEveryTopicIsClassified` enforces).
 3. `apps/web`'s `useProjectRealtime` hook (`src/hooks/use-project-realtime.ts`) listens on the shared project socket and invalidates the affected React Query cache keys — no bespoke socket listener per component.
 
 Adding a new event type touches all three layers; `environment.status_changed` (added alongside this convention note, replacing a 2-second `refetchInterval` that used to poll `GET .../environments/:id` while an environment was creating/starting/stopping) is a template to copy.

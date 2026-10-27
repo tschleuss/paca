@@ -301,6 +301,10 @@
 			"serviceAccountsWrite": {
 				"label": "Gestionar cuentas de servicio",
 				"description": "Crear, editar y eliminar cuentas de servicio y emitir o revocar sus claves de API"
+			},
+			"gitIdentitiesManage": {
+				"label": "Gestionar identidades Git",
+				"description": "Configurar y eliminar las identidades de GitHub (u otra plataforma Git) que usan los agentes, en todo el espacio de trabajo"
 			}
 		},
 		"permissionGroups": {
@@ -310,7 +314,8 @@
 			"projects": "Proyectos",
 			"plugins": "Plugins",
 			"settings": "Configuración",
-			"serviceAccounts": "Cuentas de servicio"
+			"serviceAccounts": "Cuentas de servicio",
+			"git": "Git"
 		},
 		"defaultDialog": {
 			"title": "Establecer rol predeterminado",
@@ -627,6 +632,70 @@
 				"deleteTitle": "Eliminar esta cuenta de servicio",
 				"deleteHint": "Sus claves de API dejan de funcionar y se quitan sus roles y pertenencias a proyectos."
 			}
+		}
+	},
+	"git": {
+		"title": "Git",
+		"description": "Identidades de bot que permiten a los agentes clonar, enviar cambios y abrir pull requests o merge requests en tus plataformas Git. Cada host tiene una identidad compartida; los agentes también pueden tener la suya desde su configuración.",
+		"noProviders": {
+			"title": "No hay ningún proveedor de Git instalado",
+			"description": "Instala un plugin de proveedor de Git, como GitHub Integration, para configurar una identidad de bot.",
+			"action": "Gestionar plugins"
+		},
+		"cancel": "Cancelar",
+		"identity": {},
+		"setup": {
+			"button": "Configurar",
+			"dialogTitle": "Configurar {{provider}} en {{host}}",
+			"dialogDescription": "Paca creará en {{host}} una identidad de bot que los agentes usarán para clonar, enviar cambios y trabajar en {{changeRequests}}. Se te enviará a {{host}} para aprobarla y luego volverás aquí.",
+			"name": "Nombre de la app (opcional)",
+			"nameHelp": "Cómo aparece el bot en la plataforma. Déjalo vacío para usar el valor predeterminado.",
+			"org": "Organización (opcional)",
+			"orgHelp": "Déjalo vacío para crearla en tu propia cuenta.",
+			"start": "Continuar a {{host}}",
+			"submitToken": "Guardar",
+			"public": "Permitir instalar en otras cuentas (app pública)",
+			"publicHelp": "Necesario cuando los proyectos usan repositorios de distintos usuarios u organizaciones. Una app privada solo se puede instalar en la cuenta que la posee."
+		},
+		"delete": {
+			"button": "Quitar",
+			"title": "¿Quitar esta identidad?",
+			"description": "Los agentes dejarán de actuar como {{name}} en {{host}} y usarán otras identidades. Los repositorios ya vinculados siguen vinculados. La app no se elimina en la plataforma; quítala allí si ya no la necesitas.",
+			"confirm": "Quitar identidad"
+		},
+		"callback": {
+			"working": "Finalizando la configuración…",
+			"workingHint": "Mantén esta página abierta.",
+			"failedTitle": "No se pudo completar la configuración",
+			"back": "Volver a la configuración de Git"
+		},
+		"errors": {
+			"generic": "Algo salió mal. Inténtalo de nuevo.",
+			"setupInvalid": "Este enlace de configuración no es válido, ha caducado o ya se usó. Inicia la configuración de nuevo.",
+			"identityExists": "Ya existe una identidad aquí. Quítala primero para configurar una nueva.",
+			"publicUrlRequired": "La URL pública de la instancia no está configurada (PUBLIC_URL), por lo que la plataforma no puede acceder a ella.",
+			"providerUnavailable": "El plugin del proveedor de Git no está disponible. Comprueba que esté instalado y activado.",
+			"providerRejected": "La plataforma rechazó la solicitud. Comprueba los permisos de la cuenta que usaste.",
+			"notFound": "No encontrado."
+		},
+		"copy": "Copiar",
+		"copied": "Copiado",
+		"status": {
+			"connected": "Conectado",
+			"notConnected": "No conectado"
+		},
+		"platforms": {
+			"title": "Plataformas Git",
+			"description": "Cada plataforma necesita una identidad de bot compartida."
+		},
+		"connect": {
+			"title": "Conectar {{provider}}",
+			"description": "Paca crea una cuenta de bot en {{host}} que los agentes usan para leer código, subir ramas, abrir pull requests y comentar.",
+			"time": "Tarda alrededor de un minuto. Lo apruebas en la plataforma y vuelves aquí."
+		},
+		"connected": {
+			"sharedNote": "Compartida por todos los proyectos y agentes que no tienen identidad propia.",
+			"mention": "Menciónalo en los comentarios:"
 		}
 	}
 }

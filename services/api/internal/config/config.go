@@ -34,6 +34,13 @@ type Config struct {
 	// "not configured."
 	SSHBastionHost  string
 	PortForwardHost string
+	// DockerInSandbox mirrors agent-runner's own SANDBOX_DOCKER_IN_SANDBOX:
+	// whether a docker_enabled sandbox can run at all on this deployment.
+	// Its only reader is GET /environments/config, which the frontend uses
+	// to decide whether to offer the docker toggle at all — the enforcement
+	// itself lives in agent-runner, which refuses the sandbox before
+	// submitting it.
+	DockerInSandbox bool
 	Env             string // development | production
 }
 

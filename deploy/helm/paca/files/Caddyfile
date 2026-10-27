@@ -156,8 +156,17 @@
 		@wasm path *.wasm
 		header @wasm Content-Type "application/wasm"
 
-		# Fingerprinted assets can be cached immutably for a long time.
-		header Cache-Control "public, max-age=900, immutable"
+		# Fingerprinted assets (the hashed chunk/css files a build emits) can be
+		# cached immutably. remoteEntry.js is the exception: its name is stable
+		# but its contents change with every plugin build (it lists the
+		# component exposes and the hashed chunks to load), so a cached copy
+		# after an upgrade points the host at components or chunks that no
+		# longer exist and the plugin fails to load. Make the browser
+		# revalidate it (cheap: it is ETag'd and a few KB).
+		@remote_entry path */remoteEntry.js
+		@fingerprinted not path */remoteEntry.js
+		header @fingerprinted Cache-Control "public, max-age=900, immutable"
+		header @remote_entry Cache-Control "no-cache"
 		file_server
 	}
 

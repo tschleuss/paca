@@ -53,7 +53,6 @@ type ProjectsScoper interface {
 type projectAuthorizer interface {
 	iam.Checker
 	EffectiveActions(ctx context.Context, p iam.Principal, projectID string) ([]string, error)
-	ProjectWideActions(ctx context.Context, p iam.Principal, projectID string) ([]string, error)
 }
 
 // ProjectHandler handles project management endpoints.
@@ -196,7 +195,7 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hasGlobalRead, authzErr := h.hasPlatformProjectsRead(r, accountID)
+	hasGlobalRead, authzErr := h.hasPlatformProjectsRead(r)
 	if authzErr != nil {
 		presenter.Error(w, r, authzErr)
 		return
@@ -222,11 +221,15 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 // hasPlatformProjectsRead reports whether the caller may read every project:
 // projects:read on the project collection "project" (the platform-wide
 // projects.read). Judged as the token's subject, as before.
-func (h *ProjectHandler) hasPlatformProjectsRead(r *http.Request, accountID uuid.UUID) (bool, error) {
+func (h *ProjectHandler) hasPlatformProjectsRead(r *http.Request) (bool, error) {
 	if h.authorizer == nil {
 		return false, nil
 	}
-	return iam.AllowedAll(r.Context(), h.authorizer, iam.User(accountID.String()), "project", iam.ActionProjectsRead)
+	principal, err := middleware.IAMPrincipalFrom(r)
+	if err != nil {
+		return false, err
+	}
+	return iam.AllowedAll(r.Context(), h.authorizer, principal, "project", iam.ActionProjectsRead)
 }
 
 // GetWorkspaceStats handles GET /projects/workspace-stats.
@@ -241,7 +244,7 @@ func (h *ProjectHandler) GetWorkspaceStats(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	hasGlobalRead, authzErr := h.hasPlatformProjectsRead(r, accountID)
+	hasGlobalRead, authzErr := h.hasPlatformProjectsRead(r)
 	if authzErr != nil {
 		presenter.Error(w, r, authzErr)
 		return

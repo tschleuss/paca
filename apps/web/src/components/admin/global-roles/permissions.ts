@@ -1,6 +1,7 @@
 import {
 	Bot,
 	FolderKanban,
+	GitBranch,
 	KeyRound,
 	type LucideIcon,
 	Puzzle,
@@ -100,6 +101,12 @@ export const KNOWN_PERMISSIONS = [
 		domain: "agents",
 	},
 	{
+		key: "git.identities:manage",
+		labelKey: "globalRoles.permissions.gitIdentitiesManage.label",
+		descriptionKey: "globalRoles.permissions.gitIdentitiesManage.description",
+		domain: "git",
+	},
+	{
 		key: "plugins:read",
 		labelKey: "globalRoles.permissions.pluginsRead.label",
 		descriptionKey: "globalRoles.permissions.pluginsRead.description",
@@ -156,6 +163,11 @@ export const PERMISSION_GROUPS = [
 		domain: "projects",
 		labelKey: "globalRoles.permissionGroups.projects",
 		Icon: FolderKanban,
+	},
+	{
+		domain: "git",
+		labelKey: "globalRoles.permissionGroups.git",
+		Icon: GitBranch,
 	},
 	{
 		domain: "plugins",

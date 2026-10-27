@@ -35,6 +35,17 @@ export const ApiErrorCode = {
 	APIKeyNameInvalid: "API_KEY_NAME_INVALID",
 	APIKeyNameTooLong: "API_KEY_NAME_TOO_LONG",
 
+	// Git integration errors.
+	GitNotFound: "GIT_NOT_FOUND",
+	GitAlreadyLinked: "GIT_ALREADY_LINKED",
+	GitIdentityExists: "GIT_IDENTITY_EXISTS",
+	GitAccessNotGranted: "GIT_ACCESS_NOT_GRANTED",
+	GitNoIdentity: "GIT_NO_IDENTITY",
+	GitSetupInvalid: "GIT_SETUP_INVALID",
+	GitPublicURLRequired: "GIT_PUBLIC_URL_REQUIRED",
+	GitProviderUnavailable: "GIT_PROVIDER_UNAVAILABLE",
+	GitProviderRejected: "GIT_PROVIDER_REJECTED",
+
 	// User domain errors.
 	UserNotFound: "USER_NOT_FOUND",
 	UsernameTaken: "USER_USERNAME_TAKEN",

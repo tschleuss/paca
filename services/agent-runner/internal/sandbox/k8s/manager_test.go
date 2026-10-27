@@ -14,6 +14,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	utilexec "k8s.io/client-go/util/exec"
+
+	"github.com/Paca-AI/agent-runner/internal/sandbox"
 )
 
 // Unlike ../sandbox_test.go's Docker-backed Manager, Start/Stop/
@@ -37,6 +39,66 @@ func TestJobName_IsDeterministicAndPrefixed(t *testing.T) {
 	}
 	if got2 := jobName(convID); got2 != got {
 		t.Errorf("jobName is not deterministic: got %q then %q for the same input", got, got2)
+	}
+}
+
+// TestDockerInSandboxDisabled_RefusesBeforeSubmittingAnything covers the
+// deployment-level gate: a namespace that cannot admit a privileged DinD
+// sidecar must refuse a docker_enabled sandbox up front, rather than submit
+// a Job/Pod that Pod Security Admission rejects.
+func TestDockerInSandboxDisabled_RefusesBeforeSubmittingAnything(t *testing.T) {
+	m := managerWithPods("paca-sandbox")
+	m.dockerInSandbox = false
+	// A refused call must not fall through to a readiness wait: the guard runs
+	// before any write, so these timeouts are never reached by a passing run —
+	// they only turn a regressed guard into a fast, legible failure.
+	m.podReadyTimeout = time.Millisecond
+
+	for name, call := range map[string]func() error{
+		"Start": func() error {
+			_, err := m.Start(context.Background(), sandbox.Config{
+				ConversationID: "11111111-2222-3333-4444-555555555555",
+				DockerEnabled:  true,
+			})
+			return err
+		},
+		"CreateEnvironment": func() error {
+			_, err := m.CreateEnvironment(context.Background(), sandbox.EnvironmentConfig{
+				EnvironmentID: "11111111-2222-3333-4444-555555555555",
+				DockerEnabled: true,
+			})
+			return err
+		},
+		"StartEnvironment": func() error {
+			_, err := m.StartEnvironment(context.Background(), "paca-env-11111111", sandbox.EnvironmentConfig{
+				EnvironmentID: "11111111-2222-3333-4444-555555555555",
+				DockerEnabled: true,
+			})
+			return err
+		},
+	} {
+		err := call()
+		if err == nil {
+			t.Fatalf("%s with DockerEnabled accepted on a deployment with docker-in-sandbox disabled", name)
+		}
+		if !strings.Contains(err.Error(), "docker-in-sandbox is disabled") {
+			t.Errorf("%s error = %v, want the docker-in-sandbox refusal (not a readiness failure)", name, err)
+		}
+	}
+
+	jobs, err := m.clientset.BatchV1().Jobs("paca-sandbox").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if len(jobs.Items) != 0 {
+		t.Errorf("jobs created = %d, want 0 (the refusal must precede any API write)", len(jobs.Items))
+	}
+	deployments, err := m.clientset.AppsV1().Deployments("paca-sandbox").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("list deployments: %v", err)
+	}
+	if len(deployments.Items) != 0 {
+		t.Errorf("deployments created = %d, want 0 (the refusal must precede any API write)", len(deployments.Items))
 	}
 }
 

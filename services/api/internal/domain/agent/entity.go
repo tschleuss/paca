@@ -50,7 +50,7 @@ type Agent struct {
 	LLMModel        string
 	LLMAPIKeySecret string // reference to secrets store entry
 	LLMBaseURL      string
-	// ACPProvider is one of claude-code | codex | gemini-cli | goose | custom;
+	// ACPProvider is one of claude-code | codex | gemini-cli | goose | opencode | custom;
 	// nil for llm-type agents.
 	ACPProvider *string
 	// ACPCommand is the command + args used to launch the ACP server. Only
@@ -198,6 +198,7 @@ const (
 	ACPProviderCodex      = "codex"
 	ACPProviderGeminiCLI  = "gemini-cli"
 	ACPProviderGoose      = "goose"
+	ACPProviderOpenCode   = "opencode"
 	ACPProviderCustom     = "custom"
 )
 
@@ -207,6 +208,7 @@ var ValidACPProviders = map[string]bool{
 	ACPProviderCodex:      true,
 	ACPProviderGeminiCLI:  true,
 	ACPProviderGoose:      true,
+	ACPProviderOpenCode:   true,
 	ACPProviderCustom:     true,
 }
 

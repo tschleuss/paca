@@ -626,6 +626,7 @@ func (h *TaskHandler) parseTaskFilter(r *http.Request, projectID uuid.UUID) (tas
 		}
 		filter.ParentTaskID = &id
 	}
+	filter.ExcludeSubtasks = filter.ParentTaskID == nil && r.URL.Query().Get("exclude_subtasks") == "true"
 	if raw := strings.TrimSpace(r.URL.Query().Get("search")); raw != "" {
 		filter.Search = &raw
 		filter.SearchContent = r.URL.Query().Get("search_content") == "true"
@@ -701,6 +702,7 @@ func (h *TaskHandler) parseTaskFilter(r *http.Request, projectID uuid.UUID) (tas
 //   - assignee_id=<uuid> or assignee_ids=<uuid,uuid>
 //   - task_type_ids=<uuid,uuid>
 //   - parent_task_id=<uuid>
+//   - exclude_subtasks=true (omit tasks whose parent is a non-Epic task in the same sprint; ignored with parent_task_id)
 //   - search=<text> (matches title or "#<task_number>", case-insensitive)
 //   - search_content=true (with search: also match description text)
 //   - custom_field_filters=<json> (object keyed by custom field key; see

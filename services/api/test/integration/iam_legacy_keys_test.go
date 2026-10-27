@@ -65,8 +65,9 @@ func TestLegacyBuiltinKeysMapOntoBuiltinActions(t *testing.T) {
 		}
 	}
 	for _, a := range iam.BuiltinActions() {
-		// Service accounts did not exist when the legacy keys did.
-		if strings.HasPrefix(string(a), "service_accounts:") {
+		// Service accounts and the Git integration did not exist when the
+		// legacy keys did.
+		if strings.HasPrefix(string(a), "service_accounts:") || strings.HasPrefix(string(a), "git") {
 			continue
 		}
 		want = append(want, string(a))

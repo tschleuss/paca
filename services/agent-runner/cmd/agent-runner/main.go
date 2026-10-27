@@ -236,6 +236,9 @@ func newSandboxBackend(settings config.Settings) (sandbox.FullBackend, error) {
 			// doc comment on why leaving this empty (the default) is
 			// meaningfully different from hardcoding one.
 			EnvironmentsStorageClassName: settings.SandboxEnvironmentsStorageClass,
+			// Whether a docker_enabled sandbox may run at all on this
+			// cluster — see SandboxDockerInSandbox's own doc comment.
+			DockerInSandbox: settings.SandboxDockerInSandbox,
 		})
 	case "docker":
 		mgr, err := dockersandbox.NewManager(settings.PortPoolStart, settings.PortPoolSize)

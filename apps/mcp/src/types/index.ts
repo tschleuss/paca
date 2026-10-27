@@ -39,10 +39,11 @@ export interface PacaConfig {
 	 */
 	conversationId?: string;
 	/**
-	 * Names (e.g. "com.paca.github") of the repository plugins installed on
-	 * this conversation's project, forwarded from the agent-runner trigger's
-	 * repo_plugin_ids field as PACA_REPO_PLUGIN_IDS (comma-separated). Empty
-	 * or unset means no repository plugin is configured, in which case the
+	 * Names (e.g. "com.paca.github") of the Git provider plugins installed,
+	 * forwarded from the agent-runner trigger's repo_plugin_ids field as
+	 * PACA_REPO_PLUGIN_IDS (comma-separated). Only used to decide whether the
+	 * Git tools are offered; the tools themselves talk to core. Empty or unset
+	 * means no Git provider is installed, in which case the
 	 * repo tools (list_repositories/clone_repository/push_branch) are hidden
 	 * entirely — see server.ts's tool-listing handler.
 	 */
@@ -557,17 +558,17 @@ export interface ReorderViewsInput {
 	view_ids: string[];
 }
 
-export interface BulkMoveTasksInput {
-	task_id: string;
-	target_view_id: string;
-	target_status_id: string | null;
-	target_position?: number;
+export interface MoveTaskPositionInput {
+	position: number;
+	group_key?: string | null;
 }
 
-export interface MoveTaskInput {
-	target_view_id: string;
-	target_status_id: string | null;
-	target_position?: number;
+export interface BulkMoveTasksInput {
+	items: Array<{
+		task_id: string;
+		position: number;
+		group_key?: string | null;
+	}>;
 }
 
 // ==================== Custom Fields ====================
@@ -981,31 +982,28 @@ export interface ConversationEventPage {
 // ==================== Repository (repo-tools) ====================
 
 /**
- * One repository as returned by a repository plugin's
- * `GET /api/v1/plugins/{pluginId}/projects/{projectId}/repositories` route
- * (a plugin-owned endpoint proxied through PluginHandler.ProxyRequest —
- * there is no core-API implementation of repository listing to mirror
- * beyond this shape). Ported from the equivalent per-item dict shape in the
- * now-removed services/ai-agent's repo_tools.py ListRepositoriesExecutor.
+ * A repository linked to a project, from core's
+ * `GET /api/v1/projects/{projectId}/git/repositories`. `clone_url` never
+ * carries credentials.
  */
-export interface RepositoryListItem {
+export interface GitRepository {
 	id: string;
-	full_name: string;
-	owner: string;
-	repo_name: string;
+	provider_id: string;
+	host: string;
+	full_path: string;
+	default_branch: string;
 	clone_url: string;
 }
 
 /**
- * Clone credentials for one repository, from the same plugin's
- * `.../repositories/{repoId}/clone-info` route. `token` is short-lived and
- * must never be logged — see repo-tools.ts's scrubToken.
+ * A short-lived credential for ONE git operation, from core's
+ * `POST .../git/repositories/{repoId}/credential/{read|write}`. `secret` must
+ * never be logged or shown to a model.
  */
-export interface RepositoryCloneInfo {
-	id: string;
-	full_name: string;
-	clone_url: string;
-	token: string;
+export interface GitCredential {
+	username: string;
+	secret: string;
+	expires_at: string | null;
 }
 
 /**

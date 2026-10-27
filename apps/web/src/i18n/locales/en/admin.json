@@ -318,6 +318,10 @@
 			"serviceAccountsWrite": {
 				"label": "Manage Service Accounts",
 				"description": "Create, edit and delete service accounts and mint or revoke their API keys"
+			},
+			"gitIdentitiesManage": {
+				"label": "Manage Git identities",
+				"description": "Set up and remove the GitHub (or other Git platform) identities that agents use, for the whole workspace"
 			}
 		},
 		"permissionGroups": {
@@ -327,7 +331,8 @@
 			"projects": "Projects",
 			"plugins": "Plugins",
 			"settings": "Settings",
-			"serviceAccounts": "Service Accounts"
+			"serviceAccounts": "Service Accounts",
+			"git": "Git"
 		},
 		"defaultDialog": {
 			"title": "Set default role",
@@ -627,6 +632,70 @@
 				"deleteTitle": "Delete this service account",
 				"deleteHint": "Its API keys stop working and its roles and project memberships are removed."
 			}
+		}
+	},
+	"git": {
+		"title": "Git",
+		"description": "Bot identities that let agents clone, push and open pull requests or merge requests on your Git platforms. Each host has one shared identity; agents can also get their own from their settings.",
+		"noProviders": {
+			"title": "No Git provider installed",
+			"description": "Install a Git provider plugin, such as GitHub Integration, to set up a bot identity.",
+			"action": "Manage plugins"
+		},
+		"cancel": "Cancel",
+		"identity": {},
+		"setup": {
+			"button": "Set up",
+			"dialogTitle": "Set up {{provider}} on {{host}}",
+			"dialogDescription": "Paca will create a bot identity on {{host}} that agents use to clone, push and work on {{changeRequests}}. You will be sent to {{host}} to approve it, then brought back here.",
+			"name": "App name (optional)",
+			"nameHelp": "How the bot appears on the platform. Leave empty to use the default.",
+			"org": "Organization (optional)",
+			"orgHelp": "Leave empty to create it under your own account.",
+			"start": "Continue to {{host}}",
+			"submitToken": "Save",
+			"public": "Allow installing on other accounts (public app)",
+			"publicHelp": "Needed when projects use repositories of different users or organizations. A private app can only be installed on the account that owns it."
+		},
+		"delete": {
+			"button": "Remove",
+			"title": "Remove this identity?",
+			"description": "Agents will stop acting as {{name}} on {{host}} and fall back to other identities. Repositories already linked stay linked. The app itself is not deleted on the platform; remove it there if you no longer need it.",
+			"confirm": "Remove identity"
+		},
+		"callback": {
+			"working": "Finishing setup…",
+			"workingHint": "Please keep this page open.",
+			"failedTitle": "Setup could not be completed",
+			"back": "Back to Git settings"
+		},
+		"errors": {
+			"generic": "Something went wrong. Please try again.",
+			"setupInvalid": "This setup link is invalid, expired or already used. Start the setup again.",
+			"identityExists": "An identity already exists here. Remove it first to set up a new one.",
+			"publicUrlRequired": "The instance's public URL is not configured (PUBLIC_URL), so the platform cannot reach it.",
+			"providerUnavailable": "The Git provider plugin is unavailable. Check that it is installed and enabled.",
+			"providerRejected": "The platform refused the request. Check the permissions of the account you used.",
+			"notFound": "Not found."
+		},
+		"copy": "Copy",
+		"copied": "Copied",
+		"status": {
+			"connected": "Connected",
+			"notConnected": "Not connected"
+		},
+		"platforms": {
+			"title": "Git platforms",
+			"description": "Each platform needs one shared bot identity."
+		},
+		"connect": {
+			"title": "Connect {{provider}}",
+			"description": "Paca creates a bot account on {{host}} that agents use to read code, push branches, open pull requests and comment.",
+			"time": "Takes about a minute. You approve it on the platform, then come back here."
+		},
+		"connected": {
+			"sharedNote": "Shared by every project and agent that has no identity of its own.",
+			"mention": "Mention it in comments:"
 		}
 	}
 }

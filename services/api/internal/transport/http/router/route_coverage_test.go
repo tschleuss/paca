@@ -38,7 +38,7 @@ import (
 // listings), credential exchange (/auth/* login/refresh/password-set/logout,
 // automation webhooks), the plugin proxy (gated per-manifest inside the
 // handler), self-service /users/me/*, handler-scoped listings (/projects,
-// workspace-stats, port-forward resolve, members/me/permissions) and the
+// workspace-stats, port-forward resolve, members/me/permissions and its batch check) and the
 // global-agent chat surface.
 
 // routeGates is one walked route and the gates declared on it.
@@ -77,6 +77,7 @@ func coverageDeps(iamAuth *iam.Authorizer) Deps {
 		Skills:              handler.NewSkillsHandler(nil, ""),
 		Agent:               handler.NewAgentHandler(nil, "", "", ""),
 		Environment:         handler.NewEnvironmentHandler(nil, ""),
+		Git:                 handler.NewGitHandler(nil),
 		ProjectExport:       handler.NewProjectExportHandler(nil),
 		Annotation:          handler.NewAnnotationHandler(nil),
 		Conversation:        handler.NewConversationHandler(nil),
@@ -677,7 +678,12 @@ func TestEntityRoutesHonourPerEntityPolicy(t *testing.T) {
 			allow([]string{c.actionRead, c.actionWrite}, "project/"+project),
 			allow([]string{c.actionRead, c.actionWrite, "conversations:read", "conversations:write"}, "project/"+project+"/"+c.kind+"/*"),
 			deny([]string{c.actionRead, c.actionWrite, "conversations:read", "conversations:write"}, "project/"+project+"/"+c.kind+"/"+blocked),
-		)}
+		),
+			// A few entity routes (an agent's Git identity) also need a
+			// workspace-level action; the entity policy is what varies here.
+			platformRole(allow([]string{"git.identities:manage"}, "git_identity/*")),
+		}
+		grants = append(grants, projectRole(project, allow([]string{"git:read", "git:write"}, "project/"+project)))
 		routes := walkGates(t, coverageDeps(newTestIAM(&iamUserStore{grants: grants})))
 		checked := 0
 		for _, rt := range routes {

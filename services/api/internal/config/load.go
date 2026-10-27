@@ -27,6 +27,16 @@ func Load() (*Config, error) {
 	// .env is optional; ignore "file not found" error.
 	_ = godotenv.Load()
 
+	// An unparseable value keeps the permissive default rather than silently
+	// disabling a feature an operator still expects — agent-runner applies the
+	// same rule to the same variable, so the two never disagree.
+	dockerInSandbox := true
+	if v := env("SANDBOX_DOCKER_IN_SANDBOX", ""); v != "" {
+		if parsed, parseErr := strconv.ParseBool(v); parseErr == nil {
+			dockerInSandbox = parsed
+		}
+	}
+
 	accessTTL, err := parseDuration(env("JWT_ACCESS_TTL", "15m"))
 	if err != nil {
 		return nil, fmt.Errorf("config: JWT_ACCESS_TTL: %w", err)
@@ -158,6 +168,9 @@ func Load() (*Config, error) {
 
 	return &Config{
 		Env: env("ENV", "development"),
+		// Defaults to true: an existing deployment that never set this keeps
+		// offering docker toggles exactly as before.
+		DockerInSandbox: dockerInSandbox,
 		Server: ServerConfig{
 			Port:               env("PORT", "8080"),
 			CookieSecure:       cookieSecure,

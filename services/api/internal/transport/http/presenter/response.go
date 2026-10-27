@@ -19,6 +19,7 @@ import (
 	automationdom "github.com/Paca-AI/api/internal/domain/automation"
 	docdom "github.com/Paca-AI/api/internal/domain/doc"
 	environmentdom "github.com/Paca-AI/api/internal/domain/environment"
+	gitdom "github.com/Paca-AI/api/internal/domain/git"
 	notificationdom "github.com/Paca-AI/api/internal/domain/notification"
 	pluginom "github.com/Paca-AI/api/internal/domain/plugin"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
@@ -467,6 +468,31 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusBadRequest, apierr.CodeAgentCLIProviderNotSupportedForGlobalAgents
 	case errors.Is(err, agentdom.ErrAgentNotProviderCLI):
 		return http.StatusBadRequest, apierr.CodeAgentNotProviderCLI
+	// --- Git integration errors ---------------------------------------------
+	case errors.Is(err, gitdom.ErrNotFound):
+		return http.StatusNotFound, apierr.CodeGitNotFound
+	case errors.Is(err, gitdom.ErrAlreadyLinked):
+		return http.StatusConflict, apierr.CodeGitAlreadyLinked
+	case errors.Is(err, gitdom.ErrIdentityExists):
+		return http.StatusConflict, apierr.CodeGitIdentityExists
+	case errors.Is(err, gitdom.ErrSetupExpired):
+		return http.StatusBadRequest, apierr.CodeGitSetupInvalid
+	case errors.Is(err, gitdom.ErrPublicURLRequired):
+		return http.StatusUnprocessableEntity, apierr.CodeGitPublicURLRequired
+	case errors.Is(err, gitdom.ErrInvalidReturnURL):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, gitdom.ErrNoIdentity):
+		return http.StatusConflict, apierr.CodeGitNoIdentity
+	case errors.Is(err, gitdom.ErrAccessNotGranted):
+		return http.StatusConflict, apierr.CodeGitAccessNotGranted
+	case errors.Is(err, gitdom.ErrProviderUnavailable):
+		return http.StatusServiceUnavailable, apierr.CodeGitProviderUnavailable
+	case errors.Is(err, gitdom.ErrInvalidSignature):
+		return http.StatusUnauthorized, apierr.CodeUnauthenticated
+	case errors.Is(err, gitdom.ErrInvalidInput), errors.Is(err, gitdom.ErrUnsupported):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, gitdom.ErrRateLimited):
+		return http.StatusTooManyRequests, apierr.CodeTooManyRequests
 	// --- Environment errors -------------------------------------------------
 	case errors.Is(err, environmentdom.ErrEnvironmentNotFound):
 		return http.StatusNotFound, apierr.CodeEnvironmentNotFound
@@ -755,6 +781,18 @@ func httpStatusForCode(code apierr.Code) int {
 		return http.StatusConflict
 	case apierr.CodeProjectExportExpired:
 		return http.StatusGone
+	case apierr.CodeGitNotFound:
+		return http.StatusNotFound
+	case apierr.CodeGitAlreadyLinked, apierr.CodeGitNoIdentity, apierr.CodeGitIdentityExists, apierr.CodeGitAccessNotGranted:
+		return http.StatusConflict
+	case apierr.CodeGitSetupInvalid:
+		return http.StatusBadRequest
+	case apierr.CodeGitPublicURLRequired:
+		return http.StatusUnprocessableEntity
+	case apierr.CodeGitProviderUnavailable:
+		return http.StatusServiceUnavailable
+	case apierr.CodeGitProviderRejected:
+		return http.StatusUnprocessableEntity
 	case apierr.CodeEnvironmentNotFound,
 		apierr.CodeEnvironmentFolderNotFound,
 		apierr.CodeEnvironmentSSHKeyNotFound,

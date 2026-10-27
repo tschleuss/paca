@@ -193,16 +193,16 @@ func (l MemberRepoLookup) MemberPrincipalID(ctx context.Context, memberID uuid.U
 	if err != nil {
 		return "", err
 	}
-	if m.AgentID != nil {
-		return m.AgentID.String(), nil
-	}
-	return m.UserID.String(), nil
+	// Policies key every principal kind (user, agent, service account) by
+	// account id; UserID is only set for human members.
+	return m.AccountID.String(), nil
 }
 
-// MemberPrincipalLookup maps a project member id to the id of the user or
-// agent behind it (what a policy's principal.id and task.assignee_id hold). An
-// unknown member is an error: the request names someone who does not exist, and
-// the handler would reject it too.
+// MemberPrincipalLookup maps a project member id to the id of the account
+// (user, agent or service account) behind it, which is what a policy's
+// principal.id and task.assignee_id hold. An unknown member is an error: the
+// request names someone who does not exist, and the handler would reject it
+// too.
 type MemberPrincipalLookup interface {
 	MemberPrincipalID(ctx context.Context, memberID uuid.UUID) (string, error)
 }

@@ -83,6 +83,12 @@ const StreamProjectExports = "paca.project_exports"
 
 // Event type constants used in both Pub/Sub messages and Stream entries.
 const (
+	// --- IAM events ---------------------------------------------------------
+	// TopicIAMChanged is published to ChannelRealtime when a role or one of its
+	// attachments changed (see NotifyIAMChanges). services/realtime handles it
+	// itself; it is never delivered to a client.
+	TopicIAMChanged = "iam.changed"
+
 	// --- Auth events --------------------------------------------------------
 	TopicUserCreated = "user.created"
 	TopicUserDeleted = "user.deleted"

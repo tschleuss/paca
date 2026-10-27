@@ -8,22 +8,37 @@ import {
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 import { currentUserQueryOptions } from "@/lib/auth-api";
+import { sanitizeRedirect } from "@/lib/safe-redirect";
 
 export const Route = createFileRoute("/")({
-	// Set by the API when an SSO sign-in fails (see SsoErrorNotice).
-	validateSearch: (search: Record<string, unknown>): { sso_error?: string } =>
-		typeof search.sso_error === "string" ? { sso_error: search.sso_error } : {},
-	beforeLoad: async ({ context: { queryClient } }) => {
+	// `sso_error` is set by the API when an SSO sign-in fails (see
+	// SsoErrorNotice). `redirect` is where to go once signed in; it is only
+	// honoured when it is a same-origin path (see sanitizeRedirect).
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { sso_error?: string; redirect?: string } => ({
+		...(typeof search.sso_error === "string"
+			? { sso_error: search.sso_error }
+			: {}),
+		...(sanitizeRedirect(search.redirect)
+			? { redirect: sanitizeRedirect(search.redirect) as string }
+			: {}),
+	}),
+	beforeLoad: async ({ context: { queryClient }, search }) => {
 		const user = await queryClient
 			.fetchQuery(currentUserQueryOptions)
 			.catch(() => null);
-		if (user) throw redirect({ to: "/home" });
+		if (user) {
+			// Already signed in (e.g. the session was refreshed meanwhile).
+			if (search.redirect) throw redirect({ href: search.redirect });
+			throw redirect({ to: "/home" });
+		}
 	},
 	component: LoginPage,
 });
 
 function LoginPage() {
-	const { sso_error: ssoError } = Route.useSearch();
+	const { sso_error: ssoError, redirect } = Route.useSearch();
 	return (
 		<div className="flex min-h-screen flex-col">
 			{/* Top bar */}
@@ -37,7 +52,7 @@ function LoginPage() {
 				<div className="island-shell rise-in w-full max-w-4xl overflow-hidden rounded-xl">
 					<div className="grid lg:grid-cols-[1fr_400px]">
 						<BrandPanel />
-						<LoginFormPanel ssoError={ssoError} />
+						<LoginFormPanel ssoError={ssoError} redirectTo={redirect} />
 					</div>
 				</div>
 			</main>

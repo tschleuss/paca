@@ -77,6 +77,24 @@ const (
 
 	ActionPluginsRead  Action = "plugins:read"
 	ActionPluginsWrite Action = "plugins:write"
+
+	// Git: the repositories a project linked through a Git provider plugin.
+	// Write covers linking and unlinking and minting a credential that can
+	// push; Read covers listing and minting a read-only credential.
+	ActionGitRead  Action = "git:read"
+	ActionGitWrite Action = "git:write"
+	// ActionGitApprove gates approving a change request. It is separate from
+	// write so a role can comment and request changes without being able to
+	// satisfy a required review.
+	ActionGitApprove Action = "git:approve"
+	// ActionGitMerge gates merging a change request; off in every default role.
+	ActionGitMerge Action = "git:merge"
+
+	// ActionGitIdentitiesManage gates the instance's bot identities on Git
+	// platforms: creating them (which creates an app/bot on the platform),
+	// listing and deleting them. It is a workspace-level privilege: an
+	// identity can act on every repository it is installed on.
+	ActionGitIdentitiesManage Action = "git.identities:manage"
 )
 
 // BuiltinActions returns every built-in action, in declaration order.
@@ -96,6 +114,7 @@ func BuiltinActions() []Action {
 		ActionWorkflowsRead, ActionWorkflowsWrite,
 		ActionAnnotationsRead, ActionAnnotationsWrite, ActionAnnotationsResolve,
 		ActionSettingsWrite, ActionSettingsSSOWrite, ActionPluginsRead, ActionPluginsWrite,
+		ActionGitRead, ActionGitWrite, ActionGitApprove, ActionGitMerge, ActionGitIdentitiesManage,
 	}
 }
 

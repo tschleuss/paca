@@ -69,6 +69,19 @@ func TestResolveUnknownProviderFallsBackToExplicitCommand(t *testing.T) {
 	}
 }
 
+func TestResolveOpenCodeDefaultCommandWinsOverExplicit(t *testing.T) {
+	want := []string{"opencode", "acp"}
+	for _, explicit := range [][]string{nil, {"should-be-ignored"}} {
+		cmd, err := ResolveCommand("opencode", explicit)
+		if err != nil {
+			t.Fatalf("ResolveCommand: %v", err)
+		}
+		if !reflect.DeepEqual(cmd, want) {
+			t.Errorf("ResolveCommand(opencode, %v) = %v, want %v", explicit, cmd, want)
+		}
+	}
+}
+
 func TestResolveUnknownProviderWithoutExplicitCommandErrors(t *testing.T) {
 	if _, err := ResolveCommand("not-a-real-provider", nil); err == nil {
 		t.Fatal("expected an error for an unknown provider with no explicit command")
@@ -81,6 +94,7 @@ func TestPermissionModeKnownAndUnknownProviders(t *testing.T) {
 		"codex":       "agent-full-access",
 		"gemini-cli":  "default",
 		"goose":       "",
+		"opencode":    "",
 		"custom":      "",
 		"unknown":     "",
 	}

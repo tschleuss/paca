@@ -57,6 +57,7 @@ type EnvironmentHandler struct {
 	// safe and just means GetConfig reports the feature(s) as unconfigured.
 	sshBastionHost  string
 	portForwardHost string
+	dockerInSandbox bool
 }
 
 // NewEnvironmentHandler returns an EnvironmentHandler wired to the
@@ -86,6 +87,14 @@ func (h *EnvironmentHandler) WithDeploymentConfig(sshBastionHost, portForwardHos
 	return h
 }
 
+// WithDockerInSandbox reports whether a docker-enabled sandbox can run on
+// this deployment — see GET /environments/config, whose reader hides the
+// docker toggle when it can't.
+func (h *EnvironmentHandler) WithDockerInSandbox(allowed bool) *EnvironmentHandler {
+	h.dockerInSandbox = allowed
+	return h
+}
+
 // GetConfig handles GET /environments/config — public, no auth required
 // (read on every environment detail/connect page load, the same "public,
 // deployment-wide, read pre-any-particular-resource" shape as GET
@@ -101,6 +110,7 @@ func (h *EnvironmentHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	presenter.OK(w, r, dto.EnvironmentDeploymentConfigResponse{
 		SSHBastionHost:  h.sshBastionHost,
 		PortForwardHost: h.portForwardHost,
+		DockerInSandbox: h.dockerInSandbox,
 	})
 }
 

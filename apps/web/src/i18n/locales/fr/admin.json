@@ -301,6 +301,10 @@
 			"serviceAccountsWrite": {
 				"label": "Gérer les comptes de service",
 				"description": "Créer, modifier et supprimer des comptes de service, et émettre ou révoquer leurs clés d'API"
+			},
+			"gitIdentitiesManage": {
+				"label": "Gérer les identités Git",
+				"description": "Configurer et supprimer les identités GitHub (ou d'une autre plateforme Git) utilisées par les agents, pour tout l'espace de travail"
 			}
 		},
 		"permissionGroups": {
@@ -310,7 +314,8 @@
 			"projects": "Projets",
 			"plugins": "Plugins",
 			"settings": "Paramètres",
-			"serviceAccounts": "Comptes de service"
+			"serviceAccounts": "Comptes de service",
+			"git": "Git"
 		},
 		"defaultDialog": {
 			"title": "Définir le rôle par défaut",
@@ -627,6 +632,70 @@
 				"deleteTitle": "Supprimer ce compte de service",
 				"deleteHint": "Ses clés d'API cessent de fonctionner et ses rôles et appartenances aux projets sont retirés."
 			}
+		}
+	},
+	"git": {
+		"title": "Git",
+		"description": "Identités de bot qui permettent aux agents de cloner, pousser et ouvrir des pull requests ou merge requests sur vos plateformes Git. Chaque hôte a une identité partagée ; les agents peuvent aussi avoir la leur dans leurs paramètres.",
+		"noProviders": {
+			"title": "Aucun fournisseur Git installé",
+			"description": "Installez un plugin de fournisseur Git, comme GitHub Integration, pour configurer une identité de bot.",
+			"action": "Gérer les plugins"
+		},
+		"cancel": "Annuler",
+		"identity": {},
+		"setup": {
+			"button": "Configurer",
+			"dialogTitle": "Configurer {{provider}} sur {{host}}",
+			"dialogDescription": "Paca va créer sur {{host}} une identité de bot que les agents utilisent pour cloner, pousser et travailler sur {{changeRequests}}. Vous serez redirigé vers {{host}} pour l'approuver, puis ramené ici.",
+			"name": "Nom de l'app (facultatif)",
+			"nameHelp": "Nom sous lequel le bot apparaît sur la plateforme. Laissez vide pour utiliser la valeur par défaut.",
+			"org": "Organisation (facultatif)",
+			"orgHelp": "Laissez vide pour la créer sous votre propre compte.",
+			"start": "Continuer vers {{host}}",
+			"submitToken": "Enregistrer",
+			"public": "Autoriser l'installation sur d'autres comptes (app publique)",
+			"publicHelp": "Nécessaire lorsque les projets utilisent des dépôts de différents utilisateurs ou organisations. Une app privée ne peut être installée que sur le compte qui la possède."
+		},
+		"delete": {
+			"button": "Retirer",
+			"title": "Retirer cette identité ?",
+			"description": "Les agents cesseront d'agir en tant que {{name}} sur {{host}} et utiliseront d'autres identités. Les dépôts déjà liés restent liés. L'app n'est pas supprimée sur la plateforme ; supprimez-la là-bas si vous n'en avez plus besoin.",
+			"confirm": "Retirer l'identité"
+		},
+		"callback": {
+			"working": "Finalisation de la configuration…",
+			"workingHint": "Veuillez garder cette page ouverte.",
+			"failedTitle": "La configuration n'a pas pu être terminée",
+			"back": "Retour aux paramètres Git"
+		},
+		"errors": {
+			"generic": "Une erreur s'est produite. Veuillez réessayer.",
+			"setupInvalid": "Ce lien de configuration est invalide, expiré ou déjà utilisé. Relancez la configuration.",
+			"identityExists": "Une identité existe déjà ici. Retirez-la d'abord pour en configurer une nouvelle.",
+			"publicUrlRequired": "L'URL publique de l'instance n'est pas configurée (PUBLIC_URL) ; la plateforme ne peut donc pas l'atteindre.",
+			"providerUnavailable": "Le plugin du fournisseur Git est indisponible. Vérifiez qu'il est installé et activé.",
+			"providerRejected": "La plateforme a refusé la demande. Vérifiez les autorisations du compte utilisé.",
+			"notFound": "Introuvable."
+		},
+		"copy": "Copier",
+		"copied": "Copié",
+		"status": {
+			"connected": "Connecté",
+			"notConnected": "Non connecté"
+		},
+		"platforms": {
+			"title": "Plateformes Git",
+			"description": "Chaque plateforme a besoin d'une identité de bot partagée."
+		},
+		"connect": {
+			"title": "Connecter {{provider}}",
+			"description": "Paca crée sur {{host}} un compte de bot que les agents utilisent pour lire le code, pousser des branches, ouvrir des pull requests et commenter.",
+			"time": "Environ une minute. Vous validez sur la plateforme, puis vous revenez ici."
+		},
+		"connected": {
+			"sharedNote": "Partagée par tous les projets et agents sans identité propre.",
+			"mention": "Mentionnez-le dans les commentaires :"
 		}
 	}
 }

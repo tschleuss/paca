@@ -82,6 +82,8 @@ spec:
               value: {{ include "paca.sandboxNamespace" . | quote }}
             - name: SANDBOX_POD_READY_TIMEOUT
               value: {{ .Values.agentRunner.sandbox.podReadyTimeout | quote }}
+            - name: SANDBOX_DOCKER_IN_SANDBOX
+              value: {{ .Values.agentRunner.sandbox.dockerInSandbox | quote }}
             - name: SANDBOX_CPU_LIMIT
               value: {{ .Values.agentRunner.sandbox.cpuLimit | quote }}
             - name: SANDBOX_MEMORY_LIMIT

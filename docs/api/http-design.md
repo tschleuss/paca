@@ -151,6 +151,7 @@ In the **Auth** column, actions joined by `+` are all required, and the action a
 | `GET` | `/api/v1/projects/:projectId/members/:memberId/roles` | Access token (fresh) + `project.members:read` | The roles a member holds in the project. |
 | `PUT` | `/api/v1/projects/:projectId/members/:memberId/roles` | Access token (fresh) + `roles:assign` on `project/:projectId/role/:roleId` for each role added or removed (no `project.members:write`) | Replace the member's roles in the project with `role_ids`. |
 | `GET` | `/api/v1/projects/:projectId/members/me/permissions` | Access token (fresh) | The caller's effective actions in the project, `{"actions": [...]}`. |
+| `POST` | `/api/v1/projects/:projectId/members/me/permissions/check` | Access token (fresh) | Batch access probe for services/realtime. Body `{"checks": [{"action", "resource"}, ...]}` (1-200 pairs, each resource inside the project); returns `{"allowed": [bool, ...]}` in order, judged as the caller by the IAM engine. Gates nothing. |
 | `GET` | `/api/v1/projects/:projectId/roles` | Access token (fresh) + `roles:read` | List the project's own roles (by name) followed by the platform roles already attached inside the project, cursor-paginated like `GET /admin/roles` (`cursor`, `page_size`, `search`, `ids`). |
 | `POST` | `/api/v1/projects/:projectId/roles` | Access token (fresh) + `roles:write` | Create a role owned by the project, from a policy document. |
 | `GET` | `/api/v1/projects/:projectId/roles/:roleId` | Access token (fresh) + `roles:read` | Get a project role. |
@@ -1252,6 +1253,7 @@ Function:
 
 - list all non-deleted tasks for a project, with optional filtering and pagination;
 - when `view_id` is supplied, each task in the response includes its manual `view_position` and `view_group_key` from that view's ordering (these fields are omitted when the task has no recorded position in the requested view);
+- each task in the response carries `subtask_count` and `subtask_done_count` (live direct children, and how many are in a status of category `done`); both are omitted when zero. Pass `parent_task_id` to list one task's children — it overrides sprint filters, while status/assignee/type/sort filters still apply;
 - tasks with system task types (`is_system = true`, i.e. Epic and Subtask) are **included** in this general list endpoint and are distinguished by the `is_system_type` flag in the response; use `exclude_system_types=true` to omit them (default behaviour of the product-backlog and sprint-specific task list endpoints).
 
 Query parameters:
@@ -1265,6 +1267,7 @@ Query parameters:
 | `assignee_id` | – | Filter to tasks assigned to a specific user |
 | `view_id` | – | UUID of a view; enriches each task with its manual position in that view |
 | `include` | – | `assignees`, `reporter` or both (comma-separated): embed the people behind `assignee_ids` / `reporter_id` in each task as `assignees` / `reporter` |
+| `exclude_subtasks` | `false` | When `true`, omit tasks whose parent is a live, non-Epic task in the same sprint (or both in the backlog); they are listed under that parent instead. Tasks that only belong to an Epic, or whose parent is in another sprint, stay. Ignored when `parent_task_id` is set |
 | `exclude_system_types` | `false` | When `true`, omit tasks whose type has `is_system = true` (Epic, Subtask) |
 
 Success response data (without `view_id`):

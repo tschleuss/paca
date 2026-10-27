@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Loader2, Server, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,7 +13,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
-import { createEnvironment, type Environment } from "@/lib/environment-api";
+import {
+	createEnvironment,
+	type Environment,
+	environmentConfigQueryOptions,
+} from "@/lib/environment-api";
 import { cn } from "@/lib/utils";
 import {
 	parseCPULimitCores,
@@ -56,6 +60,7 @@ export function EnvironmentCreateDialog({
 	const [memory, setMemory] = useState("");
 	const [disk, setDisk] = useState("");
 	const [dockerEnabled, setDockerEnabled] = useState(false);
+	const { data: deploymentConfig } = useQuery(environmentConfigQueryOptions());
 
 	const reset = () => {
 		setName("");
@@ -170,20 +175,22 @@ export function EnvironmentCreateDialog({
 						/>
 					</div>
 
-					<div className="flex items-center justify-between gap-3">
-						<div>
-							<p className="text-sm font-medium">
-								{t("environments.createDialog.dockerEnabledLabel")}
-							</p>
-							<p className="text-xs text-muted-foreground">
-								{t("environments.createDialog.dockerEnabledHint")}
-							</p>
+					{deploymentConfig?.docker_in_sandbox !== false && (
+						<div className="flex items-center justify-between gap-3">
+							<div>
+								<p className="text-sm font-medium">
+									{t("environments.createDialog.dockerEnabledLabel")}
+								</p>
+								<p className="text-xs text-muted-foreground">
+									{t("environments.createDialog.dockerEnabledHint")}
+								</p>
+							</div>
+							<Switch
+								checked={dockerEnabled}
+								onCheckedChange={setDockerEnabled}
+							/>
 						</div>
-						<Switch
-							checked={dockerEnabled}
-							onCheckedChange={setDockerEnabled}
-						/>
-					</div>
+					)}
 
 					<div>
 						<button

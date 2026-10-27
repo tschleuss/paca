@@ -205,8 +205,14 @@ func (s *Svc) NotifyAssigned(ctx context.Context, in notificationdom.NotifyAssig
 		return nil
 	}
 
+	// Agents and service accounts have no inbox, and NotifyMentioned skips
+	// them too, so only human assignees are notified.
+	if assigneeMember.MemberType == "agent" || assigneeMember.MemberType == "service_account" {
+		return nil
+	}
+
 	// Skip self-assignment (actor is the same user as the new assignee).
-	if assigneeMember.UserID == in.ActorID {
+	if assigneeMember.AccountID == in.ActorID {
 		return nil
 	}
 
@@ -221,7 +227,7 @@ func (s *Svc) NotifyAssigned(ctx context.Context, in notificationdom.NotifyAssig
 
 	n := &notificationdom.Notification{
 		ID:                 uuid.New(),
-		RecipientAccountID: assigneeMember.UserID,
+		RecipientAccountID: assigneeMember.AccountID,
 		Type:               notificationdom.NotificationTypeAssigned,
 		ProjectID:          in.ProjectID,
 		CreatedAt:          time.Now(),
@@ -236,13 +242,42 @@ func (s *Svc) NotifyAssigned(ctx context.Context, in notificationdom.NotifyAssig
 	if err := s.repo.Create(ctx, n); err != nil {
 		return err
 	}
-	s.publishCreated(ctx, n, assigneeMember.UserID)
+	s.publishCreated(ctx, n, assigneeMember.AccountID)
 
 	actorName := ""
 	if actorMember != nil {
 		actorName = actorMember.FullName
 	}
-	s.publishNotificationEvent(ctx, events.TopicNotificationAssigned, assigneeMember.UserID, actorName, s.taskURL(in.ProjectID, taskID), s.taskTitle(ctx, taskID))
+	s.publishNotificationEvent(ctx, events.TopicNotificationAssigned, assigneeMember.AccountID, actorName, s.taskURL(in.ProjectID, taskID), s.taskTitle(ctx, taskID))
+	return nil
+}
+
+// NotifyQuestion tells the owner of an agent conversation that the agent asked
+// them a question. The actor is the agent's project membership when the
+// conversation belongs to a project (a global chat has no project, so no
+// actor member). Best-effort realtime publish, like the other notifications.
+func (s *Svc) NotifyQuestion(ctx context.Context, in notificationdom.NotifyQuestionInput) error {
+	if in.RecipientAccountID == uuid.Nil || in.RecipientAccountID == in.AgentID {
+		return nil
+	}
+	conversationID := in.ConversationID
+	n := &notificationdom.Notification{
+		ID:                 uuid.New(),
+		RecipientAccountID: in.RecipientAccountID,
+		Type:               notificationdom.NotificationTypeQuestion,
+		ConversationID:     &conversationID,
+		ProjectID:          in.ProjectID,
+		CreatedAt:          time.Now(),
+	}
+	if in.ProjectID != uuid.Nil {
+		if agentMember, err := s.memberRepo.FindMember(ctx, in.ProjectID, in.AgentID); err == nil {
+			n.ActorMemberID = &agentMember.ID
+		}
+	}
+	if err := s.repo.Create(ctx, n); err != nil {
+		return err
+	}
+	s.publishCreated(ctx, n, in.RecipientAccountID)
 	return nil
 }
 
@@ -326,6 +361,37 @@ func (s *Svc) NotifyMentioned(ctx context.Context, in notificationdom.NotifyMent
 		s.publishCreated(ctx, n, mentionedUserID)
 		s.publishNotificationEvent(ctx, events.TopicNotificationMentioned, mentionedUserID, actorName, s.taskURL(in.ProjectID, taskID), taskTitle)
 	}
+	return nil
+}
+
+// NotifyDocCommentMentioned creates an in-app notification for a person
+// @mentioned in a document comment, and publishes the same
+// notification.doc_mentioned plugin event a mention in a document's content
+// does. The mentioned id comes from client-supplied BlockNote content, so
+// project membership is re-verified first (see NotifyDocMentioned).
+func (s *Svc) NotifyDocCommentMentioned(ctx context.Context, in notificationdom.NotifyDocCommentMentionedInput) error {
+	if in.MentionedUserID == in.ActorID {
+		return nil
+	}
+	if _, err := s.memberRepo.FindMember(ctx, in.ProjectID, in.MentionedUserID); err != nil {
+		return nil // not a member of this project; nothing to notify
+	}
+	docID := in.DocumentID
+	actorMemberID := in.ActorMemberID
+	n := &notificationdom.Notification{
+		ID:                 uuid.New(),
+		RecipientAccountID: in.MentionedUserID,
+		ActorMemberID:      &actorMemberID,
+		Type:               notificationdom.NotificationTypeMentioned,
+		DocumentID:         &docID,
+		ProjectID:          in.ProjectID,
+		CreatedAt:          time.Now(),
+	}
+	if err := s.repo.Create(ctx, n); err != nil {
+		return err
+	}
+	s.publishCreated(ctx, n, in.MentionedUserID)
+	s.publishNotificationEvent(ctx, events.TopicNotificationDocMentioned, in.MentionedUserID, s.resolveUserName(ctx, in.ActorID), s.docURL(in.ProjectID, docID), s.docTitle(ctx, docID))
 	return nil
 }
 
@@ -422,6 +488,8 @@ func (s *Svc) publishCreated(ctx context.Context, n *notificationdom.Notificatio
 		"actor_member_id":      n.ActorMemberID,
 		"type":                 string(n.Type),
 		"task_id":              n.TaskID,
+		"conversation_id":      n.ConversationID,
+		"document_id":          n.DocumentID,
 		"project_id":           n.ProjectID,
 		"created_at":           n.CreatedAt,
 	}

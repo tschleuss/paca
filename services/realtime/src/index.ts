@@ -3,13 +3,12 @@
 // Starts the Socket.IO server and the Valkey Pub/Sub subscriber, then blocks
 // until a SIGTERM or SIGINT signal triggers a graceful shutdown.
 //
-// Two separate ioredis clients are created:
-//   sessionRedis  — regular R/W client for session data (join/leave/disconnect).
-//   subscriber    — client locked into subscriber mode (subscribe/psubscribe only).
-//                   ioredis requires a dedicated client for this mode.
+// The ioredis subscriber is a dedicated client locked into subscriber mode
+// (subscribe/psubscribe only), which ioredis requires. Nothing else talks to
+// Valkey: sessions live in memory and every decision comes from the API.
 
-import Redis from "ioredis";
 import pino from "pino";
+import { AccessDecider } from "./access.ts";
 import { loadConfig } from "./config.ts";
 import { createSocketServer } from "./server.ts";
 import { createSubscriber } from "./subscriber.ts";
@@ -25,21 +24,20 @@ const logger = pino({
 
 logger.info("starting paca realtime service");
 
-// Session store client — regular command mode.
-const sessionRedis = new Redis(config.valkey.url, {
-	lazyConnect: false,
-	maxRetriesPerRequest: null,
-});
+const decider = new AccessDecider(config.apiUrl);
 
-sessionRedis.on("connect", () =>
-	logger.info("valkey session client connected"),
+const { httpServer, io, resyncer, expiry } = createSocketServer(
+	config,
+	logger,
+	decider,
 );
-sessionRedis.on("error", (err: unknown) =>
-	logger.error({ err }, "valkey session client error"),
+const subscriber = createSubscriber(
+	config.valkey.url,
+	io,
+	logger,
+	decider,
+	() => resyncer.onIamChanged(),
 );
-
-const { httpServer, io } = createSocketServer(config, sessionRedis, logger);
-const subscriber = createSubscriber(config.valkey.url, io, logger);
 
 httpServer.listen(config.port, () => {
 	logger.info({ port: config.port }, "realtime service listening");
@@ -54,8 +52,9 @@ function shutdown(signal: string): void {
 	// then close the HTTP server so it stops accepting new connections.
 	io.close(() => {
 		httpServer.close(() => {
+			resyncer.stop();
+			expiry.stop();
 			subscriber.disconnect();
-			sessionRedis.disconnect();
 			logger.info("shutdown complete");
 			process.exit(0);
 		});

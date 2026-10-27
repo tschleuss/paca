@@ -24,10 +24,10 @@ import { formatApiRequestError } from "../utils/index.js";
  * found" (404) on the project-scoped path, or a mis-scoped lookup on the
  * global path, regardless of which one this tool guessed at based on
  * whether the caller happened to pass a projectId. The /agents/me path
- * sidesteps this entirely: it authorizes by the server's own verified
- * the calling agent against the conversation's own agent_id (see
- * agentdom.Service.GetConversationForAgent's doc comment for the exact
- * rule), so there's no project/global split — and no projectId parameter —
+ * sidesteps this entirely: the calling agent must hold conversations.read
+ * and the target must be visible to the human driving its current
+ * conversation (see agentdom.Service.GetConversationForAgent's doc comment
+ * for the exact rule), so there's no project/global split — and no projectId parameter —
  * for the caller to get wrong.
  *
  * Only covers GET .../conversations/:id and GET .../conversations/:id/events
@@ -114,6 +114,13 @@ export class PacaAPIConversationClient {
 			next_cursor: response?.next_cursor ?? null,
 			prev_cursor: response?.prev_cursor ?? null,
 		};
+	}
+
+	/** The conversation this MCP server is running as part of, or null when it
+	 *  is not running inside one (no PACA_CONVERSATION_ID). */
+	async getCurrentConversation(): Promise<AgentConversation | null> {
+		if (!this.config.conversationId) return null;
+		return this.getConversation(this.config.conversationId);
 	}
 
 	async getConversation(conversationId: string): Promise<AgentConversation> {

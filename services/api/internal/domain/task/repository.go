@@ -151,8 +151,14 @@ type TaskFilter struct {
 	ParentTaskID *uuid.UUID  // non-nil → only subtasks of this parent
 	TaskTypeIDs  []uuid.UUID // multi-value; when non-empty, only tasks of these types
 	TaskTypeNull bool        // true → only tasks where task_type_id IS NULL
-	BacklogOnly  bool        // true → only tasks where sprint_id IS NULL
-	CursorAfter  *string     // opaque base64 cursor; when set, replaces offset-based paging
+	// ExcludeSubtasks, when true, omits tasks whose parent is a live task in the
+	// same sprint (or both in the backlog) that is not an Epic — they are listed
+	// under that parent instead. Tasks that merely belong to an Epic, or whose
+	// parent sits in another sprint, stay in the list. Ignored when
+	// ParentTaskID is set.
+	ExcludeSubtasks bool
+	BacklogOnly     bool    // true → only tasks where sprint_id IS NULL
+	CursorAfter     *string // opaque base64 cursor; when set, replaces offset-based paging
 	// Search, when non-nil and non-blank, restricts results to tasks whose title
 	// or "#<task_number>" id contains the text (case-insensitive).
 	Search *string

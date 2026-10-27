@@ -3,39 +3,46 @@
 // The API publishes every real-time event to the "paca.events" channel as
 // JSON-serialised messages with the shape:
 //
-//   { "type": "<event-type>", "payload": { ...event-specific fields... } }
+//   { "type": "<event-type>", "payload": { ...event-specific fields... },
+//     "authz": { "action": "tasks:read", "resource": "project/<p>/task/<t>" } }
 //
-// Routing
-// -------
-// Events are routed to namespace-scoped Socket.IO rooms:
+// `authz` says what IAM must allow before a client sees the event (see
+// events.AuthzFor in services/api). It is the only routing and authorization
+// input this service trusts for project events: the resource names the
+// project, the action names the namespace room that prefilters the sockets,
+// and each candidate socket's account is checked against the API on that
+// resource before the event is emitted (see access.ts). A Deny on one task
+// therefore keeps that task's events from an account that may read the rest.
 //
-//   task.*     events  →  project:<projectId>:tasks
-//   doc.*      events  →  project:<projectId>:docs
-//   workflow.* events  →  project:<projectId>:workflows (except
-//                          workflow.assigned, which is task-scoped)
-//   sprint.*   events  →  project:<projectId>:sprints
-//   environment.* events → project:<projectId>:environments
-//   agent.*    events  →  project:<projectId>:tasks, OR — when the event has
-//                          no project_id (a global agent's home-page / admin
-//                          chat, see services/ai-agent's
-//                          core.streams.publish_realtime) —
-//                          user:<actorAccountId>:agent-chat instead.
+// Other messages:
 //
-// Sockets are pre-placed in the correct rooms at join time based on their
-// project permissions (project:* rooms) or simply their own identity
-// (user:<userId>:notifications and user:<userId>:agent-chat, auto-joined on
-// connect — see server.ts).  No per-message permission checks are needed
-// here — if a socket is in the room it is authorised to receive the event.
+//   iam.changed          the API changed a role or an attachment: drop cached
+//                        decisions and re-sync open sockets (see resync.ts).
+//   notification.*       routed to the recipient's own room.
+//   agent.* with an actor_account_id
+//                        an owner-private conversation: the owner's own room.
+//   agent.* with a project_id and conversation_id
+//                        normally carries an `authz` (services/agent-runner
+//                        and the API's agent.session.started); a publisher
+//                        that predates it is checked as conversations:read on
+//                        the conversation all the same. A payload-free
+//                        agent.session.started also goes to the tasks room so
+//                        task boards refresh.
 //
-// Events without a project_id and (for agent.* events) without an
-// actor_account_id, or with an unrecognised type prefix, are dropped.
+// An event with a project_id but no `authz` (a publisher that predates the
+// descriptor) falls back to the old prefix routing and is delivered to its
+// whole room; this is logged once per type so it gets fixed at the source.
+// Events with no project and no actor scope, or an unrecognised type, are
+// dropped.
 
 import Redis from "ioredis";
 import type { Logger } from "pino";
 import type { Server } from "socket.io";
+import { type AccessDecider, deliverToReaders, KeyedQueue } from "./access.ts";
 import {
 	agentChatRoomName,
 	eventNamespace,
+	namespaceForAction,
 	projectRoomName,
 } from "./permissions.ts";
 
@@ -43,10 +50,28 @@ import {
 // Must stay in sync with events.ChannelRealtime in services/api.
 const CHANNEL = "paca.events";
 
+// TOPIC_IAM_CHANGED must stay in sync with events.TopicIAMChanged.
+const TOPIC_IAM_CHANGED = "iam.changed";
+
 interface RealtimeMessage {
 	type: string;
 	payload?: unknown;
 	data?: unknown;
+	authz?: unknown;
+}
+
+interface Authz {
+	action: string;
+	resource: string;
+}
+
+// Routing is everything the subscriber needs besides the Socket.IO server.
+interface Routing {
+	decider: AccessDecider;
+	queue: KeyedQueue;
+	onIamChanged: () => void;
+	// Types already reported as published without an authz descriptor.
+	warnedNoAuthz: Set<string>;
 }
 
 // createSubscriber connects a dedicated ioredis client in subscriber mode,
@@ -56,7 +81,15 @@ export function createSubscriber(
 	valkeyUrl: string,
 	io: Server,
 	logger: Logger,
+	decider: AccessDecider,
+	onIamChanged: () => void,
 ): Redis {
+	const routing: Routing = {
+		decider,
+		queue: new KeyedQueue(),
+		onIamChanged,
+		warnedNoAuthz: new Set(),
+	};
 	// A separate client is required because ioredis clients in subscriber mode
 	// cannot issue regular commands.
 	const client = new Redis(valkeyUrl, {
@@ -97,14 +130,27 @@ export function createSubscriber(
 			return;
 		}
 
-		routeEvent(io, msg, logger);
+		routeEvent(io, msg, logger, routing);
 	});
 
 	return client;
 }
 
-function routeEvent(io: Server, msg: RealtimeMessage, logger: Logger): void {
+export function routeEvent(
+	io: Server,
+	msg: RealtimeMessage,
+	logger: Logger,
+	routing: Routing,
+): void {
 	const { type } = msg;
+
+	// A control message: not an event, never delivered.
+	if (type === TOPIC_IAM_CHANGED) {
+		logger.debug("iam changed — dropping decisions, re-syncing sockets");
+		routing.onIamChanged();
+		return;
+	}
+
 	const payload = eventPayload(msg);
 	if (!payload) {
 		logger.debug({ type }, "event has no payload — skipped");
@@ -146,23 +192,155 @@ function routeEvent(io: Server, msg: RealtimeMessage, logger: Logger): void {
 		}
 	}
 
-	// Project-scoped events (project-shared conversations, tasks, docs, ...).
-	const projectId = payload.project_id;
-	if (typeof projectId === "string" && projectId) {
-		// Resolve the namespace room from the event type prefix.
-		const ns = eventNamespace(type);
-		if (!ns) {
-			logger.debug({ type }, "unknown event namespace — skipped");
-			return;
-		}
+	const event = { type, payload };
 
-		const room = projectRoomName(projectId, ns);
-		logger.debug({ type, room }, "routing event to room");
-		io.to(room).emit("event", { type, payload });
+	// The API said what IAM must allow: check each candidate socket on it.
+	const authz = parseAuthz(msg.authz);
+	if (authz) {
+		const projectOfEvent = projectOfResource(authz.resource);
+		const conversation = payload.conversation_id;
+		if (projectOfEvent && typeof conversation === "string" && conversation) {
+			announceSessionStarted(io, event.type, projectOfEvent, conversation);
+		}
+		routeAuthorized(io, event, authz, logger, routing);
 		return;
 	}
 
-	logger.debug({ type }, "event has no project or actor scope — skipped");
+	// Project-scoped events without a descriptor.
+	const projectId = payload.project_id;
+	if (typeof projectId !== "string" || !projectId) {
+		logger.debug({ type }, "event has no project or actor scope — skipped");
+		return;
+	}
+
+	// Conversation content is authorized per conversation, not per room.
+	const conversationId = payload.conversation_id;
+	if (
+		type.startsWith("agent.") &&
+		type !== "agent.acp_bridge.status" &&
+		typeof conversationId === "string" &&
+		conversationId
+	) {
+		routeConversationEvent(
+			io,
+			event,
+			projectId,
+			conversationId,
+			logger,
+			routing,
+		);
+		return;
+	}
+
+	// Resolve the namespace room from the event type prefix.
+	const ns = eventNamespace(type);
+	if (!ns) {
+		logger.debug({ type }, "unknown event namespace — skipped");
+		return;
+	}
+	if (!routing.warnedNoAuthz.has(type)) {
+		routing.warnedNoAuthz.add(type);
+		logger.warn(
+			{ type },
+			"event published without an authz descriptor — delivered to its whole room",
+		);
+	}
+
+	const room = projectRoomName(projectId, ns);
+	logger.debug({ type, room }, "routing event to room");
+	io.to(room).emit("event", event);
+}
+
+function parseAuthz(raw: unknown): Authz | undefined {
+	if (!raw || typeof raw !== "object") return undefined;
+	const { action, resource } = raw as Record<string, unknown>;
+	if (typeof action !== "string" || !action) return undefined;
+	if (typeof resource !== "string" || !resource) return undefined;
+	return { action, resource };
+}
+
+// projectOfResource returns the project id of "project/<id>[/...]".
+function projectOfResource(resource: string): string | undefined {
+	const [root, id] = resource.split("/");
+	return root === "project" && id ? id : undefined;
+}
+
+// routeAuthorized delivers an event to the sockets of the action's namespace
+// room whose account may perform the action on the resource. The project comes
+// from the resource, never from the payload. Events of one resource keep
+// their order even when an earlier one waits on an access check.
+function routeAuthorized(
+	io: Server,
+	event: { type: string; payload: Record<string, unknown> },
+	authz: Authz,
+	logger: Logger,
+	{ decider, queue }: Routing,
+): void {
+	const projectId = projectOfResource(authz.resource);
+	const ns = namespaceForAction(authz.action);
+	if (!projectId || !ns) {
+		logger.warn(
+			{ type: event.type, authz },
+			"authz descriptor names no project room — event dropped",
+		);
+		return;
+	}
+	const room = projectRoomName(projectId, ns);
+	queue.run(authz.resource, async () => {
+		const sockets = await io.in(room).fetchSockets();
+		await deliverToReaders(
+			sockets,
+			decider,
+			projectId,
+			authz,
+			event,
+			(err, userId) =>
+				logger.warn(
+					{ type: event.type, resource: authz.resource, userId, err },
+					"access check failed — event not delivered",
+				),
+		);
+	});
+}
+
+// routeConversationEvent delivers an agent.* conversation event that carries
+// no descriptor yet, as conversations:read on the conversation.
+function routeConversationEvent(
+	io: Server,
+	event: { type: string; payload: Record<string, unknown> },
+	projectId: string,
+	conversationId: string,
+	logger: Logger,
+	routing: Routing,
+): void {
+	announceSessionStarted(io, event.type, projectId, conversationId);
+
+	routeAuthorized(
+		io,
+		event,
+		{
+			action: "conversations:read",
+			resource: `project/${projectId}/conversation/${conversationId}`,
+		},
+		logger,
+		routing,
+	);
+}
+
+// announceSessionStarted tells the project's task boards that a conversation
+// started. The tasks-room copy carries no conversation content, only which
+// conversation it was; the full event is delivered per viewer.
+function announceSessionStarted(
+	io: Server,
+	type: string,
+	projectId: string,
+	conversationId: string,
+): void {
+	if (type !== "agent.session.started") return;
+	io.to(projectRoomName(projectId, "tasks")).emit("event", {
+		type,
+		payload: { project_id: projectId, conversation_id: conversationId },
+	});
 }
 
 function eventPayload(msg: RealtimeMessage): Record<string, unknown> | null {

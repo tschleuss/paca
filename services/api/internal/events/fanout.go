@@ -56,7 +56,9 @@ type Event struct {
 	// "type", and services/realtime routes it to a room by prefix (see
 	// eventNamespace in services/realtime/src/permissions.ts). A topic with
 	// no matching prefix rule is silently dropped before it reaches any
-	// client, so a new topic needs a routing rule there too.
+	// client, so a new topic needs a routing rule there too. AuthzFor holds
+	// the matching rule for what IAM must allow; TestEveryTopicIsClassified
+	// fails until a new topic is placed in it.
 	Topic string
 
 	// Payload is the message body. It must be JSON-marshalable, and it is
@@ -91,6 +93,11 @@ type Event struct {
 	// tell a system-caused change from a human one — the automation engine's
 	// self-trigger guard depends on it.
 	Origin Origin
+
+	// Authz overrides the action and resource AuthzFor derives from Topic and
+	// EntityType/EntityID. Set it only when an event's subject is not the
+	// entity the activity log records.
+	Authz *Authz
 
 	// SkipPluginEvents suppresses the StreamPluginEvents append. Set it for
 	// events a plugin could not meaningfully act on — plugin dispatch is
@@ -217,10 +224,7 @@ func FanoutTo(ctx context.Context, publisher Sink, e Event) {
 		appendFields(ctx, publisher, StreamPluginEvents, fields)
 	}
 
-	_ = publisher.Publish(ctx, ChannelRealtime, map[string]any{
-		"type":    e.Topic,
-		"payload": e.Payload,
-	})
+	_ = publisher.Publish(ctx, ChannelRealtime, realtimeMessage(e))
 }
 
 // appendFields writes one stream entry, copying the map because AppendFlat

@@ -14,10 +14,16 @@ import { cn } from "@/lib/utils";
 import { FieldError } from "./FieldError";
 import { SsoErrorNotice, SsoSignInButtons } from "./SsoSignIn";
 
-export function LoginFormPanel({ ssoError }: { ssoError?: string } = {}) {
+export function LoginFormPanel({
+	ssoError,
+	redirectTo,
+}: {
+	ssoError?: string;
+	redirectTo?: string;
+} = {}) {
 	const { t } = useTranslation("auth");
 	const { t: tCommon } = useTranslation("common");
-	const { form, serverError } = useLoginForm();
+	const { form, serverError } = useLoginForm(redirectTo);
 	const [showPassword, setShowPassword] = useState(false);
 	const branding = useBranding();
 	const logoUrl = branding?.logo_thumb_url ?? branding?.logo_url;

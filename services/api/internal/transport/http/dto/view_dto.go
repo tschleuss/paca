@@ -59,6 +59,8 @@ type ViewConfigDTO struct {
 	// InitialPageSize is the saved number of tasks to fetch on the first load
 	// of this view, independent of PageSize.
 	InitialPageSize int `json:"initial_page_size,omitempty"`
+	// SubtaskMode is "collapsed", "expanded" or "hidden"; empty means "collapsed".
+	SubtaskMode string `json:"subtask_mode,omitempty"`
 	// PluginManifestID is the reverse-DNS plugin manifest identifier
 	// (for example "com.paca.bdd").
 	PluginManifestID string `json:"plugin_manifest_id,omitempty"`
@@ -72,10 +74,12 @@ type ViewResponse struct {
 	ProjectID uuid.UUID          `json:"project_id"`
 	Name      string             `json:"name"`
 	ViewType  sprintdom.ViewType `json:"view_type"`
-	Config    ViewConfigDTO      `json:"config"`
-	Position  float64            `json:"position"`
-	CreatedAt time.Time          `json:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at"`
+	// Context is the interaction the view belongs to: "sprint", "backlog" or "timeline".
+	Context   sprintdom.ViewContext `json:"context"`
+	Config    ViewConfigDTO         `json:"config"`
+	Position  float64               `json:"position"`
+	CreatedAt time.Time             `json:"created_at"`
+	UpdatedAt time.Time             `json:"updated_at"`
 	// IsPersonalized is true when Config reflects the caller's own personal
 	// override rather than the shared default everyone else sees. No
 	// omitempty: the frontend needs an explicit false, not an absent key.
@@ -99,6 +103,7 @@ func viewConfigToDTO(cfg sprintdom.ViewConfig) ViewConfigDTO {
 		CollapsedColumns: cfg.CollapsedColumns,
 		PageSize:         cfg.PageSize,
 		InitialPageSize:  cfg.InitialPageSize,
+		SubtaskMode:      cfg.SubtaskMode,
 		PluginManifestID: cfg.PluginID,
 		PluginComponent:  cfg.PluginComponent,
 	}
@@ -119,6 +124,7 @@ func ViewFromEntity(v *sprintdom.SprintView) ViewResponse {
 		ProjectID:      v.ProjectID,
 		Name:           v.Name,
 		ViewType:       v.ViewType,
+		Context:        v.ViewContext,
 		IsPersonalized: v.HasPersonalConfig,
 		Config:         viewConfigToDTO(v.Config),
 		SharedConfig:   viewConfigToDTO(sharedConfig),
@@ -144,6 +150,7 @@ func toViewConfig(d *ViewConfigDTO) sprintdom.ViewConfig {
 		CollapsedColumns: d.CollapsedColumns,
 		PageSize:         d.PageSize,
 		InitialPageSize:  d.InitialPageSize,
+		SubtaskMode:      d.SubtaskMode,
 		PluginID:         d.PluginManifestID,
 		PluginComponent:  d.PluginComponent,
 	}

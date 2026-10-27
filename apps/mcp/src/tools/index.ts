@@ -14,6 +14,7 @@ import {
 	getAnnotationTools,
 	handleAnnotationTool,
 } from "./annotation-tools.js";
+import { ASK_TOOL_NAMES, getAskTools, handleAskTool } from "./ask-tools.js";
 import {
 	getAttachmentTools,
 	handleAttachmentTool,
@@ -34,6 +35,7 @@ import {
 	getFilesystemDocTools,
 	handleFilesystemDocTool,
 } from "./filesystem-doc-tools.js";
+import { GIT_TOOL_NAMES, getGitTools, handleGitTool } from "./git-tools.js";
 import {
 	getProjectMemberTools,
 	getProjectRoleTools,
@@ -59,6 +61,11 @@ import {
 	getViewTools,
 	handleViewTool,
 } from "./view-tools.js";
+import {
+	getWorkspaceTools,
+	handleWorkspaceTool,
+	WORKSPACE_TOOL_NAMES,
+} from "./workspace-tools.js";
 
 /**
  * Returns all available MCP tools.
@@ -82,8 +89,11 @@ export function getAllTools(): Tool[] {
 		...getAutomationTools(),
 		...getDocActivityTools(),
 		...getRepoTools(),
+		...getWorkspaceTools(),
+		...getGitTools(),
 		...getConversationTools(),
 		...getAnnotationTools(),
+		...getAskTools(),
 	];
 }
 
@@ -103,7 +113,6 @@ export async function handleToolCall(
 		conversationClient: PacaAPIConversationClient;
 		annotationClient: PacaAPIAnnotationClient;
 	},
-	repoPluginIds: string[] = [],
 ): Promise<any> {
 	const { name, arguments: args } = request.params;
 
@@ -277,7 +286,17 @@ export async function handleToolCall(
 			name === "clone_repository" ||
 			name === "push_branch"
 		) {
-			return handleRepoTool(name, args, clients.apiClient, repoPluginIds);
+			return handleRepoTool(name, args, clients.apiClient);
+		}
+
+		// Git review / comment / issue / CI tools
+		if ((GIT_TOOL_NAMES as readonly string[]).includes(name)) {
+			return handleGitTool(name, args, clients.apiClient);
+		}
+
+		// Workspace tools (inspect/prepare a checkout, commit, push)
+		if ((WORKSPACE_TOOL_NAMES as readonly string[]).includes(name)) {
+			return handleWorkspaceTool(name, args, clients.apiClient);
 		}
 
 		// Conversation tools
@@ -288,6 +307,17 @@ export async function handleToolCall(
 		// Page annotation ("comment") tools
 		if (name === "list_annotations" || name === "get_annotation") {
 			return handleAnnotationTool(name, args, clients.annotationClient);
+		}
+
+		// Ask-the-user (multiple-choice question) tool
+		if ((ASK_TOOL_NAMES as readonly string[]).includes(name)) {
+			return handleAskTool(
+				name,
+				args,
+				clients.taskExtendedClient,
+				clients.docClient,
+				clients.conversationClient,
+			);
 		}
 
 		throw new Error(`Unknown tool: ${name}`);

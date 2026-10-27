@@ -99,6 +99,28 @@ func TestDelete_UnknownIsNotFound(t *testing.T) {
 	}
 }
 
+type countingGrants struct{ calls int }
+
+func (c *countingGrants) Invalidate(...string) { c.calls++ }
+
+func TestDelete_AnnouncesLostAccess(t *testing.T) {
+	grants := &countingGrants{}
+	svc := serviceaccountsvc.New(newFakeRepo()).WithGrantsNotifier(grants)
+	if err := svc.Delete(t.Context(), uuid.New()); err == nil {
+		t.Fatal("deleting an unknown account must fail")
+	}
+	if grants.calls != 0 {
+		t.Fatalf("a failed delete announced %d times", grants.calls)
+	}
+	a, _ := svc.Create(t.Context(), accountdom.CreateServiceAccountInput{Name: "x"})
+	if err := svc.Delete(t.Context(), a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if grants.calls != 1 {
+		t.Fatalf("announced %d times, want 1", grants.calls)
+	}
+}
+
 func TestAvatarOperationsNeedTheAvatarService(t *testing.T) {
 	svc := serviceaccountsvc.New(newFakeRepo())
 	if _, err := svc.RemoveAvatar(t.Context(), uuid.New()); !errors.Is(err, serviceaccountsvc.ErrAvatarServiceRequired) {

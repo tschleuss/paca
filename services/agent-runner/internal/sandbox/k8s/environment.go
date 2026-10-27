@@ -354,6 +354,10 @@ func (m *Manager) CreateEnvironment(ctx context.Context, cfg sandbox.Environment
 			"see Manager.Start's identical guard in manager.go; use the docker backend for local apps/mcp development instead")
 	}
 
+	if err := m.requireDockerInSandboxAllowed(cfg.DockerEnabled); err != nil {
+		return nil, err
+	}
+
 	name := environmentName(cfg.EnvironmentID)
 	diskLimitGB := resolveEnvironmentDiskLimitGB(cfg.DiskLimitGB)
 	storageQty, err := resource.ParseQuantity(fmt.Sprintf("%dGi", diskLimitGB))
@@ -807,6 +811,9 @@ func (m *Manager) recreateGoneEnvironmentDeployment(ctx context.Context, cfg san
 // scaleDeployment ... surface this" comment), so this self-heal branch is
 // reachable exactly when they expect it to be.
 func (m *Manager) StartEnvironment(ctx context.Context, backendRef string, cfg sandbox.EnvironmentConfig) (*sandbox.EnvironmentHandle, error) {
+	if err := m.requireDockerInSandboxAllowed(cfg.DockerEnabled); err != nil {
+		return nil, err
+	}
 	if err := m.ensureEnvironmentEnv(ctx, backendRef, cfg); err != nil {
 		return nil, err
 	}

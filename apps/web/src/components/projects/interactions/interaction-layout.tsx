@@ -53,6 +53,7 @@ import {
 import {
 	allTasksQueryOptions,
 	bulkMoveViewTaskPositions,
+	type ChildTaskFilters,
 	type CustomFieldFilterQuery,
 	clearMyViewConfig,
 	createSprint,
@@ -106,6 +107,7 @@ import { RenameViewDialog } from "./rename-view-dialog";
 import { RoadmapView } from "./roadmap-view";
 import type { SprintFormPayload } from "./sprint-form-modal";
 import { TaskDetailModal } from "./task-detail-modal";
+import { resolveSubtaskMode } from "./use-subtask-expansion";
 import { UNASSIGNED_FILTER_ID, ViewSettingsPanel } from "./view-settings-panel";
 import {
 	type EpicsPagination,
@@ -652,6 +654,13 @@ export function InteractionLayout({
 
 	const isRealView = !!activeViewId && !activeViewId.startsWith("__default-");
 	const effectiveViewId = isManualSort && isRealView ? activeViewId : undefined;
+
+	// Table and Timeline nest subtasks under their parents, so the top-level
+	// list leaves them out (the Board stays flat and keeps them as cards).
+	const subtaskViewKey = effectiveViewId ?? activeView?.id ?? "default";
+	const excludeSubtasks =
+		resolveSubtaskMode(activeViewConfig) !== "hidden" &&
+		(activeView?.layout === "Table" || activeView?.layout === "Roadmap");
 	const hasExplicitFilterConfig = activeViewConfig?.filters !== undefined;
 	const apiFilters = useMemo(() => {
 		let assignee_ids: string[] | undefined;
@@ -817,6 +826,7 @@ export function InteractionLayout({
 			assigneeNull:
 				columnBy !== "assignee" ? apiFilters.assignee_null : undefined,
 			taskTypeIds: columnBy !== "type" ? apiFilters.task_type_ids : undefined,
+			excludeSubtasks: excludeSubtasks || undefined,
 			pageSize: initialColPageSize,
 			sumField: activeViewConfig?.field_sum,
 			sortBy: activeViewConfig?.sort_by,
@@ -843,7 +853,45 @@ export function InteractionLayout({
 			activeViewConfig?.sort_by,
 			effectiveViewId,
 			debouncedSearchQuery,
+			excludeSubtasks,
 		],
+	);
+
+	// Filters carried onto the children listed under an expanded parent row:
+	// the view's own filters and sort, minus what scopes the top level.
+	const childFilters = useMemo((): ChildTaskFilters => {
+		const {
+			sprintId: _sprintId,
+			sprintIds: _sprintIds,
+			taskTypeIds: _taskTypeIds,
+			taskTypeNull: _taskTypeNull,
+			sumField: _sumField,
+			viewId: _viewId,
+			pageSize: _pageSize,
+			cursor: _cursor,
+			parentTaskId: _parentTaskId,
+			excludeSubtasks: _excludeSubtasks,
+			...rest
+		} = colBaseOpts;
+		return {
+			...rest,
+			// Grouping by status/assignee splits that dimension across groups, so
+			// colBaseOpts omits it; children should still honour the user's filter.
+			statusIds: apiFilters.status_ids,
+			assigneeIds: apiFilters.assignee_ids,
+			assigneeNull: apiFilters.assignee_null,
+		};
+	}, [colBaseOpts, apiFilters]);
+	const childFiltersActive = useMemo(
+		() =>
+			Object.entries(childFilters).some(
+				([k, v]) =>
+					k !== "sortBy" &&
+					v !== undefined &&
+					v !== false &&
+					!(Array.isArray(v) && v.length === 0),
+			),
+		[childFilters],
 	);
 
 	// Tracks per-column total visible count so WS refetches restore the same depth.
@@ -930,6 +978,7 @@ export function InteractionLayout({
 			assigneeIds: apiFilters.assignee_ids,
 			assigneeNull: apiFilters.assignee_null,
 			taskTypeIds: apiFilters.task_type_ids,
+			excludeSubtasks: excludeSubtasks || undefined,
 			sortBy: activeViewConfig?.sort_by,
 			viewId: effectiveViewId,
 			search: debouncedSearchQuery || undefined,
@@ -951,6 +1000,7 @@ export function InteractionLayout({
 			activeViewConfig?.sort_by,
 			effectiveViewId,
 			debouncedSearchQuery,
+			excludeSubtasks,
 		],
 	);
 
@@ -2139,6 +2189,9 @@ export function InteractionLayout({
 					/>
 				) : activeView?.layout === "Roadmap" ? (
 					<RoadmapView
+						projectId={projectId}
+						childFilters={childFilters}
+						viewKey={subtaskViewKey}
 						tasks={tasks}
 						statuses={statuses}
 						taskTypes={creatableTaskTypes}
@@ -2171,6 +2224,9 @@ export function InteractionLayout({
 						epicsPagination={epicsPagination}
 						viewConfig={activeViewConfig}
 						canCreate={canCreate}
+						childFilters={childFilters}
+						filtersActive={childFiltersActive}
+						viewKey={subtaskViewKey}
 						columnPagination={columnPagination}
 						onCreateTask={handleCreateTask}
 						onTaskClick={handleTaskClick}

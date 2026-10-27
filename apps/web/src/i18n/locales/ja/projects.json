@@ -10,6 +10,7 @@
 				"taskStatuses": "タスクステータス",
 				"taskTypes": "タスクタイプ",
 				"customFields": "カスタムフィールド",
+				"git": "Git",
 				"jev": "Jev AI",
 				"dangerZone": "危険な操作",
 				"plugins": "プラグイン",
@@ -20,6 +21,133 @@
 					"title": "このタブを表示する権限がありません",
 					"description": "{{pluginName}}へのアクセス権限をプロジェクトのオーナーまたは管理者に依頼してください。"
 				}
+			}
+		},
+		"git": {
+			"title": "Git リポジトリ",
+			"description": "このプロジェクトのエージェントが、ワークスペース共有の Git ID を通じて作業できるリポジトリです。",
+			"empty": {
+				"title": "リンク済みのリポジトリはありません",
+				"description": "リポジトリをリンクすると、このプロジェクトのエージェントがコードを読み、プルリクエストを作成し、メンションに応答できます。",
+				"readOnly": "リポジトリをリンクするには、このプロジェクトの Git 書き込み権限が必要です。",
+				"linkNeedsAdmin": "リポジトリのリンクには、Git ID を管理するワークスペース権限も必要です。管理者に依頼してください。"
+			},
+			"noProviders": "Git プロバイダーがインストールされていません。管理者にインストールを依頼してください。",
+			"link": {
+				"platform": "プラットフォーム",
+				"repository": "リポジトリ",
+				"placeholder": "owner/name またはリポジトリ URL",
+				"button": "リンク",
+				"open": "リポジトリをリンク",
+				"cancel": "キャンセル",
+				"help": "リポジトリの URL を貼り付けるか、owner/name を入力します。",
+				"connectAction": "Git 連携を開く"
+			},
+			"unlink": {
+				"button": "リンク解除",
+				"confirm": "解除を確認",
+				"cancel": "キャンセル"
+			},
+			"resumed": "お帰りなさい。{{repository}} をリンクしてください。",
+			"access": {
+				"title": "共有 ID はこのリポジトリを参照できません",
+				"description": "{{provider}} の ID は、インストールされているアカウントのリポジトリのみ参照できます。{{owner}} にインストールしてください（プラットフォームに移動し、ここに戻ります）。その後、もう一度リンクしてください。",
+				"descriptionNoOwner": "{{provider}} の ID は、インストールされているアカウントのリポジトリのみ参照できます。インストール先を選んでください（プラットフォームに移動し、ここに戻ります）。その後、もう一度リンクしてください。",
+				"button": "{{owner}} にインストール",
+				"buttonNoOwner": "インストール先を選ぶ"
+			},
+			"errors": {
+				"generic": "問題が発生しました。もう一度お試しください。",
+				"setupInvalid": "このリンクは無効、期限切れ、または使用済みです。最初からやり直してください。",
+				"identityExists": "ここにはすでに ID があります。",
+				"publicUrlRequired": "インスタンスの公開 URL（PUBLIC_URL）が設定されていません。",
+				"providerUnavailable": "Git プロバイダープラグインを利用できません。",
+				"providerRejected": "プラットフォームがリクエストを拒否しました。",
+				"notFound": "見つかりません。",
+				"accessNotGranted": "共有 ID はこのリポジトリを参照できません。",
+				"noIdentity": "このプラットフォーム用の共有 Git ID はまだ設定されていません。ワークスペース管理者が「管理 → Git」で設定します。",
+				"alreadyLinked": "このリポジトリはすでにプロジェクトにリンクされています。"
+			},
+			"triggerKinds": {
+				"mention": {
+					"label": "メンション",
+					"description": "コメント、レビュー、説明文でボットがメンションされたとき。"
+				},
+				"own_cr_feedback": {
+					"label": "自分のプルリクエストへのフィードバック",
+					"description": "このエージェントが作成したプルリクエストにレビューやコメントが付いたとき。"
+				},
+				"ci_failure": {
+					"label": "自分のプルリクエストでの CI 失敗",
+					"description": "このエージェントが作成したプルリクエストの最新コミットでチェックが失敗したとき(試行は数回まで)。"
+				},
+				"review_request": {
+					"label": "レビュー依頼",
+					"description": "ボットがレビュアーに指定されたとき(プラットフォームが対応している場合)。"
+				},
+				"assignment": {
+					"label": "アサイン",
+					"description": "ボットが Issue やプルリクエストにアサインされたとき(プラットフォームが対応している場合)。"
+				},
+				"label": {
+					"label": "ラベル",
+					"description": "Issue やプルリクエストにラベル「paca」(または「paca:<エージェントのハンドル>」)が付いたとき。"
+				},
+				"auto_review": {
+					"label": "すべてのプルリクエストをレビュー",
+					"description": "新しいプルリクエストを自動でレビューします。オンにするまで無効です。ドラフトとエージェント自身のプルリクエストは対象外です。"
+				}
+			},
+			"repositories": {
+				"title": "リポジトリ",
+				"description": "このプロジェクトのエージェントは、これらのリポジトリで作業できます。",
+				"mention": "コメントでメンション:"
+			},
+			"automation": {
+				"title": "自動化",
+				"description": "Git 上の動きがどのようにエージェントを起動するかを設定します。",
+				"locked": "まずリポジトリをリンクしてください。この設定は、このプロジェクトにリンクされたリポジトリに適用されます。",
+				"responder": {
+					"label": "デフォルトの応答エージェント",
+					"none": "デフォルトの応答エージェントなし",
+					"help": "エージェントを指定しないメンション、ラベル、レビュー依頼に応答します。メンションに「agent:<handle>」を付けると別のエージェントを指定できます。",
+					"warning": "デフォルトの応答エージェントがないと、エージェントを指定しないメンションは無視されます。"
+				},
+				"minPermission": {
+					"label": "エージェントを起動するのに必要な最低権限",
+					"help": "リポジトリへの権限がこれより低い人はコメントできますが、エージェントは実行されません。"
+				},
+				"permission": {
+					"read": "読み取り",
+					"triage": "トリアージ",
+					"write": "書き込み",
+					"maintain": "メンテナンス",
+					"admin": "管理者"
+				},
+				"paused": {
+					"label": "自動化を一時停止",
+					"help": "一時停止中は、Git の動きでエージェントは起動しません。実行中のものは完了します。"
+				},
+				"save": "保存",
+				"saved": "保存しました。",
+				"advanced": "詳細設定"
+			},
+			"usage": {
+				"title": "使い方",
+				"description": "Git プラットフォームからエージェントを起動する 3 つの方法です。",
+				"mention": {
+					"title": "ボットにメンションする",
+					"description": "Issue またはプルリクエストにコメントします。デフォルトの応答エージェントが答えます。"
+				},
+				"pick": {
+					"title": "エージェントを指定する",
+					"description": "メンションに agent:<handle> を加えると、応答するエージェントを選べます。"
+				},
+				"label": {
+					"title": "ラベルを付ける",
+					"description": "Issue またはプルリクエストに「paca」ラベルを付けます。"
+				},
+				"automatic": "エージェントは、自分のプルリクエストのフォローアップや新規プルリクエストすべてのレビューなど、自動で起動することもできます。各エージェントの Git タブで有効にします。"
 			}
 		}
 	},
@@ -61,6 +189,7 @@
 			"acpProviderCodex": "Codex",
 			"acpProviderGeminiCli": "Gemini CLI",
 			"acpProviderGoose": "Goose",
+			"acpProviderOpenCode": "OpenCode",
 			"acpProviderCustom": "カスタム…",
 			"acpCommandLabel": "コマンド",
 			"acpCommandPlaceholder": "npx -y my-acp-server",
@@ -154,6 +283,7 @@
 			"stepSkillMcpDescription": "このエージェント自身のMCPキーを一度生成し、以下の両方のコマンドを実行してください — ツール呼び出しはあなたではなくエージェントのアクティビティとして記録されます。",
 			"stepSkillMcpSkillLabel": "スキルをインストール:",
 			"stepSkillMcpConnectLabel": "MCPサーバーに接続:",
+			"stepSkillMcpConnectLabelConfig": "これを {{file}} に追加してください（既存の \"{{section}}\" セクションがある場合は統合します）:",
 			"step3NotAvailable": "自動インストールはClaude Code、Gemini CLI、Codexで利用できます。{{provider}}には既知のカスタムプロンプトインストーラーがまだありません — 下記のPacaのMCPツールはこれがなくても機能します。",
 			"step3ViewContent": "スキルの内容を見る",
 			"step4NoKeyYet": "キーを生成すると設定コマンドが表示されます。",
@@ -173,7 +303,8 @@
 				"skills": "スキル",
 				"envVars": "環境変数",
 				"globalRole": "グローバルロール",
-				"activity": "アクティビティ"
+				"activity": "アクティビティ",
+				"git": "Git"
 			},
 			"globalRole": {
 				"title": "グローバルロール",
@@ -244,6 +375,7 @@
 				"acpProviderCodex": "Codex",
 				"acpProviderGeminiCli": "Gemini CLI",
 				"acpProviderGoose": "Goose",
+				"acpProviderOpenCode": "OpenCode",
 				"acpProviderCustom": "カスタム…",
 				"acpCommandLabel": "コマンド",
 				"acpCommandHint": "ACPサーバーの起動に使用する、スペース区切りのコマンドです。",
@@ -373,6 +505,69 @@
 			},
 			"system": {
 				"badge": "システム"
+			},
+			"git": {
+				"title": "Git ID",
+				"description": "既定では、このエージェントはワークスペース共有の Git ID で動作します。専用の ID を与えると、コミット、プルリクエスト、コメントが別のボットとして表示されます。その ID を、エージェントが扱うリポジトリのアカウントや組織にインストールしてください。",
+				"providersUnavailable": "このプロジェクトの Git プロバイダーを読み込めませんでした。",
+				"noProviders": {
+					"title": "利用できる Git プラットフォームがありません",
+					"description": "管理者に Git プロバイダープラグインのインストールと接続を依頼してください。その後、エージェントがリポジトリで作業できるようになります。"
+				},
+				"ownIdentity": "専用 ID",
+				"usesShared": "共有 ID を使用",
+				"singleIdentity": "このプラットフォームはホストごとに ID が 1 つのため、共有 ID が使われます。",
+				"remove": "削除",
+				"create": {
+					"title": "このエージェント専用の ID を作成",
+					"description": "コミット、プルリクエスト、コメントが専用ボットとして表示され、名前でメンションできるようになります。プラットフォームで承認し、そのままインストールします。",
+					"button": "ID を作成"
+				},
+				"askAdmin": "ワークスペース管理者に作成を依頼してください。",
+				"install": {
+					"label": "別のアカウントまたは組織にインストール",
+					"placeholder": "アカウントまたは組織（任意）",
+					"button": "インストール",
+					"help": "プラットフォームのインストールページが開きます。名前を空にすると、そこでアカウントを選べます。",
+					"title": "別のアカウントまたは組織にインストール"
+				},
+				"triggers": {
+					"title": "Git トリガー",
+					"description": "このエージェントを起動する Git イベントです。インストール済みの Git プロバイダーが配信できるイベントのみ表示されます。",
+					"filters": {
+						"branches": "対象ブランチを限定",
+						"authors": "作成者を限定",
+						"help": "カンマ区切り。空欄ならすべて対象です。ボットが作成したものをレビューするには、一覧に含める必要があります。",
+						"save": "フィルターを保存"
+					},
+					"unsupported": "接続中の Git プラットフォームでは未対応です。",
+					"groups": {
+						"requests": {
+							"title": "リクエストに応答",
+							"description": "誰かがこのエージェントを呼び出したときに起動します。"
+						},
+						"followUp": {
+							"title": "自分のプルリクエストをフォローアップ",
+							"description": "このエージェントが作成したプルリクエストで動きがあったときに起動します。"
+						},
+						"proactive": {
+							"title": "自発的に動く",
+							"description": "誰も依頼しなくても起動します。デフォルトではオフです。"
+						}
+					}
+				},
+				"identity": {
+					"title": "ID",
+					"description": "このエージェントが各 Git プラットフォームで使うアカウントです。"
+				},
+				"own": {
+					"description": "このエージェントは専用ボットを持つため、コミット、プルリクエスト、コメントが別の名前で表示されます。",
+					"mention": "メンション:"
+				},
+				"shared": {
+					"description": "このエージェントは、他のエージェントと同じくワークスペースの共有ボットを通じて動作します。"
+				},
+				"permissions": "このエージェントが Git でできることはプロジェクトでのロールに従います。読み取りと書き込みはロールの Git 権限によります。プルリクエストの承認とマージは、デフォルトでは許可されません。"
 			}
 		},
 		"conversationView": {
@@ -893,6 +1088,22 @@
 			"projectExport": {
 				"label": "プロジェクトデータのエクスポート",
 				"description": "このプロジェクトのタスク（コメントとアクティビティを含む）とドキュメントをエクスポートします"
+			},
+			"gitRead": {
+				"label": "Git の表示",
+				"description": "プロジェクトにリンクされたリポジトリを表示します"
+			},
+			"gitWrite": {
+				"label": "Git の管理",
+				"description": "リポジトリのリンク・解除、リポジトリへのアクセス付与、エージェントによる変更のプッシュを許可します"
+			},
+			"gitApprove": {
+				"label": "変更リクエストの承認",
+				"description": "プルリクエストやマージリクエストを承認します。必須レビューを満たすことがあります。コメントと変更の依頼には Git の管理のみが必要です。"
+			},
+			"gitMerge": {
+				"label": "変更リクエストのマージ",
+				"description": "プルリクエストやマージリクエストをターゲットブランチにマージします。プラットフォーム側のブランチ保護は引き続き適用されます。"
 			}
 		},
 		"permissionGroups": {
@@ -908,7 +1119,8 @@
 			"environments": "環境",
 			"annotations": "Annotations",
 			"workflows": "自動化",
-			"plugins": "プラグイン"
+			"plugins": "プラグイン",
+			"git": "Git"
 		}
 	},
 	"settings": {
@@ -1622,6 +1834,66 @@
 		"searchableList": {
 			"searchPlaceholder": "検索…",
 			"noResults": "一致なし"
+		},
+		"git": {
+			"branches": "ブランチ",
+			"pullRequests": "プルリクエスト",
+			"linkBranch": "ブランチをリンク",
+			"newBranch": "新しいブランチ",
+			"linkPullRequest": "プルリクエストをリンク",
+			"noBranches": "リンクされたブランチはまだありません。",
+			"noPullRequests": "リンクされたプルリクエストはまだありません。",
+			"by": "作成者: {{author}}",
+			"unlink": "リンク解除",
+			"unlinkPullRequest": "プルリクエスト {{name}} のリンクを解除",
+			"unlinkBranch": "ブランチ {{name}} のリンクを解除",
+			"copyCheckout": "checkout コマンドをコピー",
+			"copy": "コピー",
+			"copied": "コピーしました",
+			"state": {
+				"open": "オープン",
+				"draft": "ドラフト",
+				"merged": "マージ済み",
+				"closed": "クローズ"
+			},
+			"ci": {
+				"passing": "CI 成功",
+				"failing": "CI 失敗",
+				"pending": "CI 実行中",
+				"failingNames": "失敗: {{names}}",
+				"counts": "{{total}} 件中 {{passed}} 件のチェックが成功"
+			},
+			"forms": {
+				"selectRepository": "リポジトリを選択…",
+				"cancel": "キャンセル",
+				"pullRequest": "プルリクエスト",
+				"pullRequestHint": "プルリクエストのリンクを貼り付けるか、番号を入力してください。",
+				"willLink": "{{repository}} の {{what}} をリンクします",
+				"repository": "リポジトリ",
+				"linkPullRequest": "プルリクエストをリンク",
+				"existingBranch": "既存のブランチ",
+				"branchHint": "ブランチ名を入力するか、そのリンクを貼り付けてください。",
+				"linkBranch": "ブランチをリンク",
+				"branchType": "種類",
+				"branchName": "ブランチ名",
+				"branchFrom": "作成元",
+				"branchFromHint": "任意 — 既定ではリポジトリの既定ブランチです。",
+				"createBranch": "ブランチを作成",
+				"orLocally": "またはローカルで作成"
+			},
+			"errors": {
+				"notFound": "そのリポジトリには見つかりませんでした。",
+				"rejected": "Git プラットフォームがこのリポジトリへのリクエストを拒否しました。",
+				"unavailable": "Git プロバイダーが一時的に利用できません。もう一度お試しください。",
+				"noIdentity": "このリポジトリで操作できる Git ID がありません。",
+				"forbidden": "この操作を行う権限がありません。",
+				"generic": "問題が発生しました。もう一度お試しください。",
+				"repoNotLinked": "「{{repository}}」はこのプロジェクトにリンクされていません。",
+				"selectRepository": "リポジトリを選択してください。",
+				"invalidNumber": "番号を入力するか、リンクを貼り付けてください。",
+				"branchRequired": "ブランチ名を入力するか、リンクを貼り付けてください。",
+				"createRefused": "プラットフォームがそのブランチを作成できませんでした(名前が使用済みか無効の可能性があります)。"
+			}
 		}
 	},
 	"portForwardDetail": {
@@ -1793,6 +2065,19 @@
 		"backlog": {
 			"title": "プロダクトバックログ",
 			"description": "スプリントに割り当てられていないすべての作業項目です。"
+		},
+		"subtasks": {
+			"expand": "{{n}} 件のサブタスクを展開",
+			"collapse": "{{n}} 件のサブタスクを折りたたむ",
+			"progress": "{{n}} 件中 {{done}} 件のサブタスクが完了",
+			"loading": "サブタスクを読み込み中",
+			"loadError": "サブタスクを読み込めませんでした。",
+			"retry": "再試行",
+			"matching": "{{total}} 件中 {{n}} 件のサブタスクが現在のフィルターに一致",
+			"noMatch": "現在のフィルターに一致するサブタスクはありません",
+			"loadMore": "さらにサブタスクを読み込む",
+			"add": "サブタスクを追加",
+			"addPlaceholder": "サブタスクのタイトル"
 		}
 	},
 	"conversationsPage": {
@@ -1935,7 +2220,11 @@
 			"tagsFilter": {
 				"addTag": "タグを追加",
 				"addTagPlaceholder": "タグを追加..."
-			}
+			},
+			"subtasksLabel": "サブタスク",
+			"subtasksCollapsed": "ネスト表示（折りたたみ）",
+			"subtasksExpanded": "ネスト表示（展開）",
+			"subtasksHidden": "非表示（フラット表示）"
 		},
 		"roadmap": {
 			"taskColumnLabel": "タスク",

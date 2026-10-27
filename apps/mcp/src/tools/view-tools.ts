@@ -95,22 +95,26 @@ const ListTaskPositionsSchema = z.object({
 	viewId: z.string(),
 });
 
-const BulkMoveTasksSchema = z.object({
-	projectId: z.string(),
-	viewId: z.string(),
-	taskId: z.string(),
-	targetViewId: z.string(),
-	targetStatusId: z.string().nullable().optional(),
-	targetPosition: z.number().optional(),
-});
-
 const MoveTaskSchema = z.object({
 	projectId: z.string(),
 	viewId: z.string(),
 	taskId: z.string(),
-	targetViewId: z.string(),
-	targetStatusId: z.string().nullable().optional(),
-	targetPosition: z.number().optional(),
+	position: z.number().min(0),
+	groupKey: z.string().nullable().optional(),
+});
+
+const BulkMoveTasksSchema = z.object({
+	projectId: z.string(),
+	viewId: z.string(),
+	items: z
+		.array(
+			z.object({
+				taskId: z.string(),
+				position: z.number().min(0),
+				groupKey: z.string().nullable().optional(),
+			}),
+		)
+		.min(1),
 });
 
 const ListCustomFieldsSchema = z.object({
@@ -368,7 +372,8 @@ export function getViewTools(): Tool[] {
 		},
 		{
 			name: "bulk_move_tasks",
-			description: "Bulk move tasks in a view",
+			description:
+				"Set the position of several tasks within one view (no sprint or status change)",
 			inputSchema: {
 				type: "object",
 				properties: {
@@ -380,29 +385,33 @@ export function getViewTools(): Tool[] {
 						type: "string",
 						description: "The ID of the view",
 					},
-					taskId: {
-						type: "string",
-						description: "The ID of the task to move",
-					},
-					targetViewId: {
-						type: "string",
-						description: "The target view ID",
-					},
-					targetStatusId: {
-						type: "string",
-						description: "The target status ID",
-					},
-					targetPosition: {
-						type: "number",
-						description: "The target position",
+					items: {
+						type: "array",
+						description: "The tasks and their new positions in the view",
+						items: {
+							type: "object",
+							properties: {
+								taskId: { type: "string", description: "The ID of the task" },
+								position: {
+									type: "number",
+									description: "The zero-based position in the view",
+								},
+								groupKey: {
+									type: ["string", "null"],
+									description: "The group key when the view is grouped",
+								},
+							},
+							required: ["taskId", "position"],
+						},
 					},
 				},
-				required: ["projectId", "viewId", "taskId", "targetViewId"],
+				required: ["projectId", "viewId", "items"],
 			},
 		},
 		{
 			name: "move_task",
-			description: "Move a task within a view",
+			description:
+				"Set a task's position within one view (no sprint or status change)",
 			inputSchema: {
 				type: "object",
 				properties: {
@@ -418,20 +427,16 @@ export function getViewTools(): Tool[] {
 						type: "string",
 						description: "The ID of the task",
 					},
-					targetViewId: {
-						type: "string",
-						description: "The target view ID",
-					},
-					targetStatusId: {
-						type: "string",
-						description: "The target status ID",
-					},
-					targetPosition: {
+					position: {
 						type: "number",
-						description: "The target position",
+						description: "The zero-based position in the view",
+					},
+					groupKey: {
+						type: ["string", "null"],
+						description: "The group key when the view is grouped",
 					},
 				},
-				required: ["projectId", "viewId", "taskId", "targetViewId"],
+				required: ["projectId", "viewId", "taskId", "position"],
 			},
 		},
 	];
@@ -807,50 +812,36 @@ export async function handleViewTool(
 		}
 
 		case "bulk_move_tasks": {
-			const {
-				projectId,
-				viewId,
-				taskId,
-				targetViewId,
-				targetStatusId,
-				targetPosition,
-			} = BulkMoveTasksSchema.parse(args);
+			const { projectId, viewId, items } = BulkMoveTasksSchema.parse(args);
 			await client.bulkMoveTasks(projectId, viewId, {
-				task_id: taskId,
-				target_view_id: targetViewId,
-				target_status_id: targetStatusId ?? null,
-				target_position: targetPosition,
+				items: items.map((item) => ({
+					task_id: item.taskId,
+					position: item.position,
+					group_key: item.groupKey ?? null,
+				})),
 			});
 			return {
 				content: [
 					{
 						type: "text",
-						text: `Tasks moved successfully`,
+						text: `Moved ${items.length} task position${items.length === 1 ? "" : "s"} in view ${viewId}`,
 					},
 				],
 			};
 		}
 
 		case "move_task": {
-			const {
-				projectId,
-				viewId,
-				taskId,
-				targetViewId,
-				targetStatusId,
-				targetPosition,
-			} = MoveTaskSchema.parse(args);
-			await client.bulkMoveTasks(projectId, viewId, {
-				task_id: taskId,
-				target_view_id: targetViewId,
-				target_status_id: targetStatusId ?? null,
-				target_position: targetPosition,
+			const { projectId, viewId, taskId, position, groupKey } =
+				MoveTaskSchema.parse(args);
+			await client.moveTaskPosition(projectId, viewId, taskId, {
+				position,
+				group_key: groupKey ?? null,
 			});
 			return {
 				content: [
 					{
 						type: "text",
-						text: `Task moved successfully`,
+						text: `Moved task ${taskId} to position ${position} in view ${viewId}`,
 					},
 				],
 			};

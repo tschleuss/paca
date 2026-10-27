@@ -1,6 +1,6 @@
 # Paca Skills
 
-Use Paca directly from Claude Code, Gemini CLI, Cursor, or any AGENTS.md-reading tool, with `/paca` and related slash commands. Once installed, your AI coding tool will use your Paca workspace for tasks, documentation, and sprint management — instead of creating local files.
+Use Paca directly from Claude Code, Gemini CLI, Cursor, OpenCode, Goose, or any AGENTS.md-reading tool, with `/paca` and related slash commands. Once installed, your AI coding tool will use your Paca workspace for tasks, documentation, and sprint management — instead of creating local files.
 
 ## Install
 
@@ -22,13 +22,15 @@ The installer copies every bundled skill to every supported platform found on th
 | Claude Code | `~/.claude/skills/<name>/SKILL.md` | Global — every session |
 | Gemini CLI / Google Antigravity | `~/.gemini/config/plugins/paca/skills/<name>/SKILL.md` (Antigravity's real plugin-based skill mechanism — verified working against a live Antigravity install), plus `~/.gemini/skills/<name>/SKILL.md` (per Gemini CLI's own docs, unverified against the classic terminal tool) and `~/.gemini/commands/<name>.toml` (pre-existing legacy fallback) | Global — every session |
 | Cursor | `<project>/.cursor/skills/<name>/SKILL.md` | Per-project by choice (Cursor also supports a global `~/.cursor/skills/`; the installer stays project-scoped) |
-| Any AGENTS.md-reading tool (Codex, Windsurf, OpenCode, …) | `<project>/AGENTS.md` | Per-project, merged into a marker-delimited section — re-running the installer refreshes only that section and leaves the rest of the file alone. This is the one target that still strips frontmatter: AGENTS.md is a single shared file, not a per-skill directory. |
+| OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` | Global — every session |
+| Goose | `~/.agents/skills/<name>/SKILL.md` (Goose's recommended global skills folder; OpenCode also reads it, so selecting both makes OpenCode see each skill twice) | Global — every session |
+| Any AGENTS.md-reading tool (Codex, Windsurf, …) | `<project>/AGENTS.md` | Per-project, merged into a marker-delimited section — re-running the installer refreshes only that section and leaves the rest of the file alone. This is the one target that still strips frontmatter: AGENTS.md is a single shared file, not a per-skill directory. |
 
 The per-project targets (Cursor, AGENTS.md) are only written when the installer is run from inside a git working tree — run it from your project root to get those too.
 
 ### Choosing which platforms to install to
 
-By default the installer installs to every platform above. To install to only some of them, set `PACA_SKILL_PLATFORMS` to a comma/space-separated list of `claude`, `gemini`, `cursor`, `agents` (or `all`):
+By default the installer installs to every platform above. To install to only some of them, set `PACA_SKILL_PLATFORMS` to a comma/space-separated list of `claude`, `gemini`, `cursor`, `agents`, `opencode`, `goose` (or `all`):
 
 ```bash
 PACA_API_URL=http://localhost:8080 PACA_SKILL_PLATFORMS=claude,gemini \
@@ -209,6 +211,34 @@ Writes or updates a document in Paca Docs. Reads existing docs first to match to
 /paca-doc ABC-17 update                ← update an existing doc
 ```
 
+### `/paca-review <task>`
+
+Reviews the pull request linked to a task on two axes — **Spec** (acceptance criteria met?) and **Standards** (project conventions, correctness, security) — using the diff, review threads and CI results, then submits a review with a verdict. It never merges unless you ask it to.
+
+### `/paca-triage`
+
+Sorts new tasks: sets the task type, checks for duplicates and existing work, reproduces bugs, and moves each to *ready for agent*, *ready for human*, *needs info* or *decline* with a written triage note.
+
+### `/paca-retro`
+
+Sprint retrospective from the record (planned vs. delivered, slipped work, estimate accuracy, human–agent collaboration). Saves a retro doc, turns agreed improvements into tasks and can complete the sprint after confirmation.
+
+### `/paca-feedback`
+
+Turns open page comments (annotations from the browser extension, with console errors and failed requests attached) into well-formed tasks, linking duplicates.
+
+### `/paca-board`
+
+Audits and sets up how the project models work: task types, statuses, custom fields and views. Proposes the smallest setup that fits, then applies it after confirmation.
+
+### `/paca-team`
+
+Shows who can do what (members, roles, effective permissions), audits access, and adds, re-roles or removes members after confirmation.
+
+### `/paca-automation <goal>`
+
+Designs and builds an automation — Trigger → Condition → Action graphs (status changes, due dates, cron, hand-off to an AI agent, API calls). Builds as a draft, verifies the graph, and activates only after confirmation. Replaces the former `/paca-workflow`.
+
 ### `/paca-role-policy <what the role should allow>`
 
 Drafts the JSON policy of a Paca role: read-only roles, limiting someone to one sprint, restricting an agent or environment, access to specific projects. It asks a few clarifying questions and replies with one JSON policy, a plain-language summary and caveats. It **only drafts**: it never creates, updates, attaches or deletes a role. Paste the result into the role editor's Advanced (JSON) view (see [Roles and policies](roles-and-policies.md)).
@@ -260,6 +290,10 @@ rm -rf ~/.gemini/skills/paca-*
 rm -f ~/.gemini/commands/paca-*.toml
 # Cursor (run from the project root)
 rm -rf .cursor/skills/paca-*
+# OpenCode
+rm -rf ~/.config/opencode/skills/paca-*
+# Goose
+rm -rf ~/.agents/skills/paca-*
 ```
 
 For AGENTS.md, remove the block between `<!-- BEGIN PACA SKILLS ... -->` and `<!-- END PACA SKILLS -->` — everything else in the file is untouched by the installer and safe to keep.

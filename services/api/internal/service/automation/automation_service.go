@@ -72,9 +72,12 @@ func (s *Service) publish(ctx context.Context, a *automationdom.Automation, topi
 		return
 	}
 	if topic == events.TopicAutomationNodeUpdated {
-		_ = s.publisher.Publish(ctx, events.ChannelRealtime, map[string]any{
-			"type":    topic,
-			"payload": payload,
+		events.PublishRealtime(ctx, s.publisher, events.Event{
+			Topic:      topic,
+			Payload:    payload,
+			ProjectID:  a.ProjectID,
+			EntityType: events.EntityAutomation,
+			EntityID:   &a.ID,
 		})
 		return
 	}

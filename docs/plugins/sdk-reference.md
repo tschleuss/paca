@@ -202,6 +202,18 @@ interface ProjectSettingsTabProps extends BaseExtensionProps {
 }
 ```
 
+#### `app.page`
+
+```ts
+import type { AppPageProps } from "@paca-ai/plugin-sdk-react";
+
+export default function MyCallbackPage(props: AppPageProps) { ... }
+
+interface AppPageProps extends BaseExtensionProps {}
+```
+
+A top-level page at `/plugin-pages/{pluginId}/{slug}` (nav item `scope: "app"`), listed in no sidebar and not tied to a project, so `api` has no `projectId`. Read the URL's query string from `window.location`. See [Plugin pages and callbacks](frontend-plugin-system.md#plugin-pages-and-callbacks).
+
 #### `view`
 
 ```ts

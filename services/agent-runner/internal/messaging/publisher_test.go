@@ -96,6 +96,18 @@ func TestPublishRealtime_ProjectScoped(t *testing.T) {
 	if payload["event_index"] != float64(5) { // JSON numbers decode as float64
 		t.Errorf("event_index = %v, want 5", payload["event_index"])
 	}
+	// A project-shared conversation's events name what IAM must allow, so
+	// services/realtime checks each viewer on this conversation.
+	authz, ok := msg["authz"].(map[string]any)
+	if !ok {
+		t.Fatalf("authz = %T, want an object", msg["authz"])
+	}
+	if authz["action"] != "conversations:read" {
+		t.Errorf("authz.action = %v, want conversations:read", authz["action"])
+	}
+	if want := "project/" + projectID.String() + "/conversation/" + convID.String(); authz["resource"] != want {
+		t.Errorf("authz.resource = %v, want %s", authz["resource"], want)
+	}
 }
 
 // TestPublishRealtime_GlobalChatOmitsProjectID mirrors the routing
@@ -122,6 +134,24 @@ func TestPublishRealtime_GlobalChatOmitsProjectID(t *testing.T) {
 	if payload["actor_account_id"] != actorAccountID.String() {
 		t.Errorf("actor_account_id = %v, want %s", payload["actor_account_id"], actorAccountID)
 	}
+	if _, present := msg["authz"]; present {
+		t.Errorf("authz = %v, want absent: a global chat is routed to its owner's room", msg["authz"])
+	}
+}
+
+// An owner-private conversation inside a project is routed to its owner's own
+// room, so it carries no project authz either.
+func TestPublishRealtime_OwnerPrivateProjectConversationHasNoAuthz(t *testing.T) {
+	pub, client := newTestPublisher(t)
+	owner := uuid.New()
+
+	msg := subscribeAndPublish(t, client, ChannelRealtime, func() error {
+		return pub.PublishRealtime(context.Background(), uuid.New(), uuid.New(),
+			"agent.message", nil, &owner)
+	})
+	if _, present := msg["authz"]; present {
+		t.Errorf("authz = %v, want absent for an owner-private conversation", msg["authz"])
+	}
 }
 
 // TestPublishRealtime_NilConversationIDSendsEmptyString pins
@@ -140,6 +170,9 @@ func TestPublishRealtime_NilConversationIDSendsEmptyString(t *testing.T) {
 			"agent.acp_bridge.status", map[string]any{"agent_id": "a1", "connected": true}, nil)
 	})
 	payload := msg["payload"].(map[string]any)
+	if _, present := msg["authz"]; present {
+		t.Errorf("authz = %v, want absent: the bridge status has no conversation", msg["authz"])
+	}
 	if payload["conversation_id"] != "" {
 		t.Errorf("conversation_id = %v, want empty string", payload["conversation_id"])
 	}

@@ -45,7 +45,7 @@ import { useSprintDirectory } from "@/lib/sprint-directory";
 import { cn } from "@/lib/utils";
 import { PRIORITY_LEVELS } from "./priority";
 import { ChipField } from "./task-detail/property-field/chip-field";
-
+import { resolveSubtaskMode } from "./use-subtask-expansion";
 import {
 	buildAllFieldOptions,
 	buildColumnByOptions,
@@ -57,6 +57,19 @@ import {
 	getDefaultPageSize,
 	PAGE_SIZE_OPTIONS,
 } from "./view-utils";
+
+/**
+ * The value to store for a chosen Subtasks option. "Collapsed" is the unset
+ * default, but when the team default is something else it has to be stored
+ * explicitly, or a personal "collapsed" could never override it.
+ */
+export function pickSubtaskMode(
+	chosen: string | undefined,
+	shared: ViewConfig | undefined,
+): ViewConfig["subtask_mode"] {
+	if (chosen === "expanded" || chosen === "hidden") return chosen;
+	return resolveSubtaskMode(shared) === "collapsed" ? undefined : "collapsed";
+}
 
 // ── Category visual config ────────────────────────────────────────────────────
 
@@ -1478,6 +1491,33 @@ export function ViewSettingsPanel({
 									onChange={(v) => update({ sort_by: v })}
 								/>
 							</SettingRow>
+
+							{(view?.layout === "Table" || view?.layout === "Roadmap") && (
+								<SettingRow label={t("layout.viewSettings.subtasksLabel")}>
+									<DynamicSelect
+										value={draft.subtask_mode ?? "collapsed"}
+										options={[
+											{
+												key: "collapsed",
+												label: t("layout.viewSettings.subtasksCollapsed"),
+											},
+											{
+												key: "expanded",
+												label: t("layout.viewSettings.subtasksExpanded"),
+											},
+											{
+												key: "hidden",
+												label: t("layout.viewSettings.subtasksHidden"),
+											},
+										]}
+										onChange={(v) =>
+											update({
+												subtask_mode: pickSubtaskMode(v, view?.shared_config),
+											})
+										}
+									/>
+								</SettingRow>
+							)}
 
 							<SettingRow label={t("layout.viewSettings.fieldSumLabel")}>
 								<DynamicSelect

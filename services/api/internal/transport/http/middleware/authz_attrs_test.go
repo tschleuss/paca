@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
 	"github.com/Paca-AI/api/internal/platform/authz/iam"
 )
@@ -259,6 +260,38 @@ func TestViewCreateAndReorderGates(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			if rec := serveBody(t, c.method, c.pattern, c.path, c.body, c.mw); rec.Code != c.want {
 				t.Fatalf("got %d, want %d: %s", rec.Code, c.want, rec.Body)
+			}
+		})
+	}
+}
+
+// stubMemberRepo serves one member; the embedded interface is never reached.
+type stubMemberRepo struct {
+	projectdom.MemberRepository
+	m *projectdom.ProjectMember
+}
+
+func (s stubMemberRepo) FindMemberByID(context.Context, uuid.UUID) (*projectdom.ProjectMember, error) {
+	return s.m, nil
+}
+
+func TestMemberRepoLookup_UsesAccountID(t *testing.T) {
+	account, user := uuid.New(), uuid.New()
+	for _, tc := range []struct {
+		name string
+		m    *projectdom.ProjectMember
+	}{
+		{"human", &projectdom.ProjectMember{AccountID: account, UserID: account, MemberType: "human"}},
+		{"agent", &projectdom.ProjectMember{AccountID: account, AgentID: &user, MemberType: "agent"}},
+		{"service account (no UserID)", &projectdom.ProjectMember{AccountID: account, MemberType: "service_account"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := MemberRepoLookup{Repo: stubMemberRepo{m: tc.m}}.MemberPrincipalID(t.Context(), uuid.New())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != account.String() {
+				t.Errorf("got %s, want account id %s", got, account)
 			}
 		})
 	}

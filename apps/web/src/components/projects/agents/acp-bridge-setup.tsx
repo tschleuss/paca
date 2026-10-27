@@ -44,12 +44,15 @@ const CLAUDE_OAUTH_EXPORT_COMMAND =
 // both read their API key straight from an env var — so unlike Claude Code
 // above, this is the only auth step they need before the bridge starts.
 // Returns null for "custom" (unknown provider, no guidance possible) and for
-// "goose": Goose's own setup is `goose configure` (interactive) or one of
-// several possible underlying-provider env vars depending on what the user
-// picks inside it, neither of which fits this single copy-paste-able
-// non-interactive export line the way Codex/Gemini CLI's single env var
-// does — showing one anyway would risk being actively wrong. Goose users
-// get the generic guidance in the bridge's own README instead.
+// "goose" and "opencode": Goose's own setup is `goose configure`
+// (interactive) or one of several possible underlying-provider env vars
+// depending on what the user picks inside it, neither of which fits this
+// single copy-paste-able non-interactive export line the way Codex/Gemini
+// CLI's single env var does — showing one anyway would risk being actively
+// wrong. Goose users get the generic guidance in the bridge's own README
+// instead (OpenCode likewise: `opencode auth login` / `opencode providers`
+// is interactive and its credentials depend on which model provider the
+// user picks).
 function localAuthExportCommand(provider: ACPProvider): string | null {
 	switch (provider) {
 		case "codex":
@@ -140,6 +143,111 @@ function genericMcpConnectCommand(
 	return `${envVars} npx -y @paca-ai/paca-mcp`;
 }
 
+// Codex and Gemini CLI each have a real non-interactive "add MCP server"
+// command (syntax verified against codex-cli and gemini-cli 0.46.0) — like
+// Claude Code, running paca-mcp by hand does nothing for them; it has to be
+// registered in their own config. Gemini's default scope is "project", so
+// -s user is explicit (the bridge may run from any directory), and `--`
+// keeps npx's own -y from being parsed as a gemini flag.
+function codexMcpConnectCommand(
+	agentId: string,
+	projectId: string | undefined,
+	apiKey: string,
+): string {
+	const envFlags = mcpEnvPairs(agentId, projectId, apiKey)
+		.map(([key, value]) => `--env ${key}=${value}`)
+		.join(" ");
+	return `codex mcp add paca ${envFlags} -- npx -y @paca-ai/paca-mcp`;
+}
+
+function geminiMcpConnectCommand(
+	agentId: string,
+	projectId: string | undefined,
+	apiKey: string,
+): string {
+	const envFlags = mcpEnvPairs(agentId, projectId, apiKey)
+		.map(([key, value]) => `-e ${key}=${value}`)
+		.join(" ");
+	return `gemini mcp add -s user ${envFlags} paca npx -- -y @paca-ai/paca-mcp`;
+}
+
+// Goose's only persistent, non-interactive MCP registration is an entry in
+// the `extensions` section of ~/.config/goose/config.yaml (format per
+// Goose's own docs; UNVERIFIED — not exercised against a real goose install). Values are
+// JSON-quoted, which is valid YAML flow-scalar syntax.
+function gooseMcpConfig(
+	agentId: string,
+	projectId: string | undefined,
+	apiKey: string,
+): string {
+	const envs = mcpEnvPairs(agentId, projectId, apiKey)
+		.map(([key, value]) => `      ${key}: ${JSON.stringify(value)}`)
+		.join("\n");
+	return [
+		"extensions:",
+		"  paca:",
+		"    name: Paca",
+		"    type: stdio",
+		"    cmd: npx",
+		'    args: [-y, "@paca-ai/paca-mcp"]',
+		"    enabled: true",
+		"    timeout: 300",
+		"    envs:",
+		envs,
+	].join("\n");
+}
+
+// OpenCode has no non-interactive "add MCP server" command (`opencode mcp
+// add` is a prompt wizard) — its MCP servers live in the `mcp` section of
+// opencode.json, and running paca-mcp by hand in a terminal does nothing
+// for it, so show the config block to merge into
+// ~/.config/opencode/opencode.json instead of the generic command above.
+function opencodeMcpConfig(
+	agentId: string,
+	projectId: string | undefined,
+	apiKey: string,
+): string {
+	return JSON.stringify(
+		{
+			mcp: {
+				paca: {
+					type: "local",
+					command: ["npx", "-y", "@paca-ai/paca-mcp"],
+					enabled: true,
+					environment: Object.fromEntries(
+						mcpEnvPairs(agentId, projectId, apiKey),
+					),
+				},
+			},
+		},
+		null,
+		2,
+	);
+}
+
+// Picks the per-provider MCP registration step (a command or a config block).
+function buildMcpConnectCommand(
+	provider: ACPProvider,
+	agentId: string,
+	projectId: string | undefined,
+	apiKey: string,
+): string {
+	switch (provider) {
+		case "claude-code":
+			return claudeMcpConnectCommand(agentId, projectId, apiKey);
+		case "codex":
+			return codexMcpConnectCommand(agentId, projectId, apiKey);
+		case "gemini-cli":
+			return geminiMcpConnectCommand(agentId, projectId, apiKey);
+		case "opencode":
+			return opencodeMcpConfig(agentId, projectId, apiKey);
+		case "goose":
+			return gooseMcpConfig(agentId, projectId, apiKey);
+		default:
+			return genericMcpConnectCommand(agentId, projectId, apiKey);
+	}
+}
+
 type CopyField =
 	| "install"
 	| "run"
@@ -160,6 +268,8 @@ function providerLabel(
 			return t("agents.createDialog.acpProviderGeminiCli");
 		case "goose":
 			return t("agents.createDialog.acpProviderGoose");
+		case "opencode":
+			return t("agents.createDialog.acpProviderOpenCode");
 		case "custom":
 			return t("agents.acpSetup.customProviderLabel");
 		default:
@@ -193,7 +303,7 @@ export function CommandBox({
 	const { t } = useTranslation("projects");
 	return (
 		<div className="flex items-center gap-2">
-			<code className="flex-1 rounded-md bg-muted px-2 py-1.5 text-xs overflow-x-auto whitespace-nowrap">
+			<code className="flex-1 rounded-md bg-muted px-2 py-1.5 text-xs overflow-x-auto whitespace-pre">
 				{command}
 			</code>
 			<Button variant="outline" size="sm" onClick={onCopy}>
@@ -278,10 +388,16 @@ export function AcpBridgeSetup({
 			? skillInstallCommand(generatedKey)
 			: null;
 	const mcpCommand = generatedKey
-		? isClaudeCode
-			? claudeMcpConnectCommand(agentId, projectId, generatedKey)
-			: genericMcpConnectCommand(agentId, projectId, generatedKey)
+		? buildMcpConnectCommand(acpProvider, agentId, projectId, generatedKey)
 		: null;
+	// Providers whose MCP step is a config-file block (not a command): which
+	// file, and the name of the top-level section to merge into.
+	const mcpConfigFile =
+		acpProvider === "opencode"
+			? { file: "~/.config/opencode/opencode.json", section: "mcp" }
+			: acpProvider === "goose"
+				? { file: "~/.config/goose/config.yaml", section: "extensions" }
+				: null;
 
 	const { data: status } = useQuery(
 		projectId
@@ -414,7 +530,12 @@ export function AcpBridgeSetup({
 							{mcpCommand && (
 								<div className="space-y-1">
 									<p className="text-xs text-muted-foreground">
-										{t("agents.acpSetup.stepSkillMcpConnectLabel")}
+										{mcpConfigFile
+											? t(
+													"agents.acpSetup.stepSkillMcpConnectLabelConfig",
+													mcpConfigFile,
+												)
+											: t("agents.acpSetup.stepSkillMcpConnectLabel")}
 									</p>
 									<CommandBox
 										command={mcpCommand}

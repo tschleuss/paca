@@ -13,8 +13,8 @@
 // response proves the token is valid and provides the caller's global
 // permissions.  On any non-200 response the connection is refused.
 //
-// Session data (userId, username, role, globalPermissions, projectPermissions)
-// is stored in Valkey for auditing and recovery purposes.
+// Nothing about the session is persisted: the token stays in memory for the
+// socket's lifetime, and a socket never outlives it (see token-expiry.ts).
 //
 // Room management
 // ---------------
@@ -24,12 +24,15 @@
 //   project:<projectId>:docs         — all doc.* events
 //   project:<projectId>:workflows    — all workflow.* graph events
 //   project:<projectId>:sprints      — all sprint.* events
+//   project:<projectId>:views        — all view.* events
 //   project:<projectId>:environments — all environment.* events
 //
 // When a client emits "join" with { projectId }, the server fetches the user's
-// project permissions via the API, then joins only the namespace rooms the user
-// is permitted to see.  The Pub/Sub subscriber routes events directly to the
-// correct room — no per-message permission checks are needed.
+// effective project actions via the API (which include actions allowed only on
+// some resource inside the project) and joins the namespace rooms the user may
+// possibly see; the ack lists them. A room is a prefilter: each event is
+// checked against the API on its own resource before it is emitted (see
+// access.ts), and rooms are re-synced when IAM changes (see resync.ts).
 //
 // A "leave" event removes the socket from all namespace rooms for that project.
 //
@@ -51,9 +54,9 @@
 //   socket.on("event", ({ type, payload }) => { ... });
 
 import { createServer } from "node:http";
-import type Redis from "ioredis";
 import type { Logger } from "pino";
 import { Server } from "socket.io";
+import type { AccessDecider } from "./access.ts";
 import {
 	ApiRequestError,
 	fetchProjectPermissions,
@@ -61,19 +64,10 @@ import {
 } from "./api-client.ts";
 import { extractTokenFromCookieHeader } from "./auth.ts";
 import type { Config } from "./config.ts";
-import {
-	agentChatRoomName,
-	type EventNamespace,
-	hasProjectPermission,
-	NAMESPACE_PERMISSIONS,
-	projectRoomName,
-} from "./permissions.ts";
-import {
-	deleteSession,
-	type Session,
-	saveSession,
-	setProjectPermissions,
-} from "./session.ts";
+import { agentChatRoomName } from "./permissions.ts";
+import { createResyncer, type Resyncer } from "./resync.ts";
+import { syncProjectRooms } from "./rooms.ts";
+import { ExpiryWatcher } from "./token-expiry.ts";
 
 // Augment Socket.IO's socket data type.
 declare module "socket.io" {
@@ -81,20 +75,27 @@ declare module "socket.io" {
 		userId: string;
 		username: string;
 		// rawToken is kept in memory only (never persisted) so the socket can
-		// re-call the API when joining a project room.
+		// call the API as its account: joining rooms, re-syncing them and
+		// checking each event.
 		rawToken: string;
+		// expiresAt is the token's exp in epoch milliseconds, when it has one.
+		expiresAt?: number;
+		// projects are the projects this socket joined and not yet left.
+		projects: Set<string>;
 	}
 }
 
 export interface SocketServer {
 	httpServer: ReturnType<typeof createServer>;
 	io: Server;
+	resyncer: Resyncer;
+	expiry: ExpiryWatcher;
 }
 
 export function createSocketServer(
 	config: Config,
-	sessionRedis: Redis,
 	logger: Logger,
+	decider: AccessDecider,
 ): SocketServer {
 	const httpServer = createServer((req, res) => {
 		if (req.url === "/healthz" && req.method === "GET") {
@@ -140,21 +141,14 @@ export function createSocketServer(
 		try {
 			const authResult = await verifyTokenWithAPI(config.apiUrl, token);
 
-			// Persist the session in Valkey for auditing and recovery purposes.
-			const session: Session = {
-				userId: authResult.userId,
-				username: authResult.username,
-				role: authResult.role,
-				globalPermissions: authResult.globalPermissions,
-				projectPermissions: {},
-			};
-			await saveSession(sessionRedis, socket.id, session);
-
 			// Keep token and identity in in-memory socket data for later use
-			// (e.g. project join calls).  The raw token is NEVER written to Valkey.
+			// (joins, resyncs, per-event checks). The raw token is NEVER
+			// written to Valkey or logs.
 			socket.data.userId = authResult.userId;
 			socket.data.username = authResult.username;
 			socket.data.rawToken = token;
+			socket.data.expiresAt = authResult.expiresAt;
+			socket.data.projects = new Set();
 
 			next();
 		} catch (err) {
@@ -163,11 +157,17 @@ export function createSocketServer(
 		}
 	});
 
+	const expiry = new ExpiryWatcher();
+
 	// ── Connection lifecycle ───────────────────────────────────────────────────
 
 	io.on("connection", (socket) => {
 		const { userId, username } = socket.data;
 		logger.info({ userId, username, socketId: socket.id }, "client connected");
+
+		// The socket ends with its token: "reauth" a minute before, a
+		// disconnect at expiry (the client reconnects with a fresh handshake).
+		const cancelExpiry = expiry.watch(socket, socket.data.expiresAt);
 
 		// Auto-join the user's personal notification room so notification.* events
 		// can be delivered without an explicit join from the client.
@@ -188,88 +188,82 @@ export function createSocketServer(
 			"joined user agent-chat room",
 		);
 
-		// Join namespace-scoped rooms for a project.  Fetches project permissions
-		// once and joins only the rooms the user is allowed to see:
-		//   project:<projectId>:tasks  (if user has tasks.read)
-		//   project:<projectId>:docs   (if user has docs.read)
-		socket.on("join", async (data: { projectId?: string }) => {
-			const projectId = data?.projectId;
-			if (!projectId || typeof projectId !== "string") return;
+		// Join namespace-scoped rooms for a project. Fetches the account's
+		// effective project actions once and joins the rooms whose read action
+		// is among them. The optional ack receives { projectId, namespaces } so
+		// the client can tell "not allowed" from "failed" (it is never called
+		// on failure).
+		socket.on(
+			"join",
+			async (
+				data: { projectId?: string },
+				ack?: (res: { projectId: string; namespaces: string[] }) => void,
+			) => {
+				const projectId = data?.projectId;
+				if (!projectId || typeof projectId !== "string") return;
 
-			try {
-				const perms = await fetchProjectPermissions(
-					config.apiUrl,
-					socket.data.rawToken,
-					projectId,
-				);
-
-				if (perms === null) {
-					// User is not a member of this project — silently ignore.
-					logger.debug(
-						{ userId, projectId },
-						"join rejected: not a project member",
+				try {
+					const perms = await fetchProjectPermissions(
+						config.apiUrl,
+						socket.data.rawToken,
+						projectId,
 					);
-					return;
-				}
 
-				await setProjectPermissions(sessionRedis, socket.id, projectId, perms);
+					if (perms === null) {
+						// User is not a member of this project — silently ignore.
+						logger.debug(
+							{ userId, projectId },
+							"join rejected: not a project member",
+						);
+						if (typeof ack === "function") ack({ projectId, namespaces: [] });
+						return;
+					}
 
-				const joinedNamespaces: string[] = [];
-				for (const [ns, requiredPerm] of Object.entries(
-					NAMESPACE_PERMISSIONS,
-				)) {
-					if (hasProjectPermission(perms, requiredPerm)) {
-						socket.join(projectRoomName(projectId, ns as EventNamespace));
-						joinedNamespaces.push(ns);
+					const joinedNamespaces = syncProjectRooms(socket, projectId, perms);
+					socket.data.projects.add(projectId);
+					logger.debug(
+						{ userId, projectId, joinedNamespaces },
+						"joined project rooms",
+					);
+					if (typeof ack === "function") {
+						ack({ projectId, namespaces: joinedNamespaces });
+					}
+				} catch (err) {
+					logger.warn({ userId, projectId, err }, "project join failed");
+					// socket.data.rawToken is captured once at connect time and reused
+					// for as long as the WebSocket stays up. Once the access token
+					// expires every join 401s and the socket would be left in zero
+					// rooms with no recovery. Disconnecting trips socket.io-client's
+					// reconnection, which re-runs the handshake against whatever
+					// access_token cookie the browser holds by then.
+					if (err instanceof ApiRequestError && err.status === 401) {
+						socket.disconnect(true);
 					}
 				}
-				logger.debug(
-					{ userId, projectId, joinedNamespaces },
-					"joined project rooms",
-				);
-			} catch (err) {
-				logger.warn({ userId, projectId, err }, "project join failed");
-				// socket.data.rawToken is captured once at connect time and reused
-				// for every "join" on this socket for as long as the WebSocket
-				// stays up — unlike a plain HTTP request, it has no natural
-				// expiry that would otherwise force a fresh handshake. Once the
-				// access token expires, every join from then on 401s the same
-				// way and the socket is left in zero rooms with no recovery.
-				// Disconnecting trips socket.io-client's built-in automatic
-				// reconnection, which re-runs this connection's auth handshake
-				// against whatever access_token cookie the browser holds at that
-				// point — fresh, if the client has refreshed it by then.
-				if (err instanceof ApiRequestError && err.status === 401) {
-					socket.disconnect(true);
-				}
-			}
-		});
+			},
+		);
 
 		// Leave all namespace rooms for a project.
 		socket.on("leave", (data: { projectId?: string }) => {
 			const projectId = data?.projectId;
 			if (!projectId || typeof projectId !== "string") return;
-			for (const ns of Object.keys(NAMESPACE_PERMISSIONS)) {
-				socket.leave(projectRoomName(projectId, ns as EventNamespace));
-			}
+			syncProjectRooms(socket, projectId, null);
+			socket.data.projects.delete(projectId);
 			logger.debug({ userId, projectId }, "left project rooms");
 		});
 
-		socket.on("disconnect", async (reason) => {
+		socket.on("disconnect", (reason) => {
+			cancelExpiry();
 			logger.info(
 				{ userId, socketId: socket.id, reason },
 				"client disconnected",
 			);
-			try {
-				await deleteSession(sessionRedis, socket.id);
-			} catch (err) {
-				logger.warn(
-					{ userId, socketId: socket.id, reason, err },
-					"failed to delete session on disconnect",
-				);
-			}
 		});
 	});
 
-	return { httpServer, io };
+	const resyncer = createResyncer(io, config.apiUrl, decider, logger);
+	resyncer.start();
+	expiry.start();
+
+	return { httpServer, io, resyncer, expiry };
 }

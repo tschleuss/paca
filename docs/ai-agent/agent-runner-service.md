@@ -130,9 +130,9 @@ After `Run` returns, `handler.Handle` makes one more best-effort ACP call before
 
 ## Repository Access
 
-Unlike `services/ai-agent`, `agent-runner` **never clones a repository itself**. Cloning, committing, and PR creation happen entirely inside the sandbox, driven by the agent's own tool calls against the built-in Paca MCP server (`apps/mcp`, running as `npx @paca-ai/paca-mcp` inside the container — see [Skills & MCP Server Injection](#skills--mcp-server-injection)). `apps/mcp/src/tools/repo-tools.ts` fetches short-lived VCS tokens from `services/api` on demand, runs `git` as a subprocess, and scrubs the token from any output before it can reach the model's context or a log line. `clone_repository` recursively deletes its target directory before cloning into it (`targetDir` is agent-chosen, defaulting to `/home/goose/repo`); `assertSafeDeleteTarget` refuses to run that delete against a handful of top-level system directories (`/`, `/etc`, `/home`, ...) regardless of what the agent passes.
+`agent-runner` **never clones a repository itself**. Reading, cloning, committing, pushing and reviewing happen inside the sandbox, driven by the agent's own tool calls against the built-in Paca MCP server (`apps/mcp`, running as `npx @paca-ai/paca-mcp` inside the container — see [Skills & MCP Server Injection](#skills--mcp-server-injection)). The Git tools call `services/api`, which resolves the repository's provider and mints a short-lived, repository-scoped credential for each git command; git receives it through a credential helper, so no token is ever in a remote URL, a file, the environment or tool output.
 
-See [repository-plugin-adapter.md](repository-plugin-adapter.md) for the full token-fetch protocol.
+See [git-agent-workflow.md](git-agent-workflow.md) for the tools, the credential helper and the workspace protocol.
 
 ---
 

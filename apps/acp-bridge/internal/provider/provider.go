@@ -28,7 +28,8 @@ type info struct {
 
 // registry mirrors ACP_PROVIDERS in the OpenHands SDK reference
 // (apps/acp-bridge/.venv/.../openhands/sdk/settings/acp_providers.py) for
-// the three built-ins, plus "goose" — not an OpenHands built-in; the old
+// the three built-ins, plus "opencode" (`opencode acp`, same plain-subprocess
+// shape as goose) and "goose" — not an OpenHands built-in; the old
 // Python bridge added it as a local override since `goose acp` already
 // speaks ACP correctly as a plain subprocess with nothing provider-specific
 // left for a registry entry to add beyond the launch command itself.
@@ -52,6 +53,9 @@ var registry = map[string]info{
 	},
 	"goose": {
 		defaultCommand: []string{"goose", "acp"},
+	},
+	"opencode": {
+		defaultCommand: []string{"opencode", "acp"},
 	},
 }
 

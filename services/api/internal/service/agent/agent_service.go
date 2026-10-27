@@ -77,6 +77,9 @@ type Service struct {
 	// constructs a bare Service with no authorizer. Production wiring
 	// (bootstrap/app.go) always configures one via WithAuthorizer.
 	authorizer ConversationReadAuthorizer
+	// grants is told when an agent's access is revoked (a deleted agent loses
+	// its attachments and memberships). Nil: nothing is announced.
+	grants events.PolicyInvalidator
 }
 
 // New returns a configured agent service.
@@ -106,6 +109,21 @@ func (s *Service) WithEnvironmentService(svc environmentdom.Service) *Service {
 // ConversationReadAuthorizer is the IAM check GetConversationForAgent needs;
 // satisfied by *iam.Authorizer.
 type ConversationReadAuthorizer = iam.Checker
+
+// WithGrantsNotifier wires in the policy cache invalidation called after an
+// agent is deleted (its attachments and memberships go with it), which also
+// announces the change to services/realtime.
+func (s *Service) WithGrantsNotifier(inv events.PolicyInvalidator) *Service {
+	s.grants = inv
+	return s
+}
+
+// accessRevoked tells the policy cache that an agent's grants are gone.
+func (s *Service) accessRevoked() {
+	if s.grants != nil {
+		s.grants.Invalidate()
+	}
+}
 
 // WithAuthorizer wires in the IAM authorizer — see the authorizer field's
 // doc comment for what it's used for. A nil *iam.Authorizer leaves the
@@ -653,6 +671,7 @@ func (s *Service) DeleteAgent(ctx context.Context, projectID, agentID uuid.UUID)
 	}
 	// Best-effort cache invalidation so the deleted member disappears immediately.
 	_ = s.projRepo.InvalidateMembersCache(ctx, projectID)
+	s.accessRevoked()
 	s.recordAgent(ctx, projectID, a, TopicProjectAgentDeleted)
 	return nil
 }
@@ -969,6 +988,7 @@ func (s *Service) DeleteGlobalAgent(ctx context.Context, agentID uuid.UUID) erro
 	for _, projectID := range projectIDs {
 		_ = s.projRepo.InvalidateMembersCache(ctx, projectID)
 	}
+	s.accessRevoked()
 	return nil
 }
 
@@ -1618,9 +1638,6 @@ func (s *Service) GetConversationForAgent(ctx context.Context, conversationID, c
 	if err != nil {
 		return nil, err
 	}
-	if target.AgentID != callerAgentID {
-		return nil, agentdom.ErrConversationNotFound
-	}
 	// Always allowed, regardless of conversations.read: an agent may read
 	// the conversation it's currently running as part of — it already has
 	// this data as that conversation's own active participant, so gating it
@@ -1629,6 +1646,9 @@ func (s *Service) GetConversationForAgent(ctx context.Context, conversationID, c
 	// short-circuits the common case (no other conversation was attached)
 	// without a second lookup.
 	if target.ID == currentConversationID {
+		if target.AgentID != callerAgentID {
+			return nil, agentdom.ErrConversationNotFound
+		}
 		// DeletedAt deliberately NOT checked here: a user can delete the
 		// conversation this very agent is mid-turn on (auto-stop-then-delete
 		// soft-deletes immediately; agent-runner's own teardown is
@@ -1648,6 +1668,11 @@ func (s *Service) GetConversationForAgent(ctx context.Context, conversationID, c
 		return nil, err
 	}
 
+	// The target may belong to a different agent (e.g. a planner reading the
+	// conversation of an agent it delegated a task to): that is allowed when
+	// the caller holds conversations.read (checked above) and the target is
+	// visible in the caller's current conversation context below.
+	//
 	// Anything else must be authorized against whichever human is driving
 	// currentConversationID, not against callerAgentID alone — see
 	// authorizeAgentConversationRead.
@@ -2876,12 +2901,12 @@ func (s *Service) createGlobalConversation(ctx context.Context, agentID, actorAc
 	return conv, nil
 }
 
-// gatherRepoPlugins returns all installed plugins with the "repository" capability.
+// gatherRepoPlugins returns all installed Git provider plugins.
 func (s *Service) gatherRepoPlugins(ctx context.Context) []*plugindom.Plugin {
 	if s.pluginRepo == nil {
 		return nil
 	}
-	plugins, err := s.pluginRepo.FindByCapability(ctx, "repository")
+	plugins, err := s.pluginRepo.FindByCapability(ctx, plugindom.CapabilityGitProvider)
 	if err != nil {
 		return nil
 	}
@@ -2889,7 +2914,7 @@ func (s *Service) gatherRepoPlugins(ctx context.Context) []*plugindom.Plugin {
 }
 
 // gatherRepoPluginIDs returns the string Names (e.g. "com.paca.github") of all
-// installed plugins with the "repository" capability. These are the identifiers
+// installed Git provider plugins. These are the identifiers
 // used in plugin API paths and published to the agent trigger stream.
 func (s *Service) gatherRepoPluginIDs(ctx context.Context) []string {
 	names := []string{}
@@ -3024,6 +3049,19 @@ func (s *Service) TriggerDirectMessage(ctx context.Context, projectID, agentID u
 // message is the plain-text content of the comment so the agent's initial prompt
 // is populated without requiring a separate MCP call.
 func (s *Service) TriggerCommentMention(ctx context.Context, projectID, agentID, taskID, commentID, triggeredByMemberID uuid.UUID, message string) (*agentdom.AgentConversation, error) {
+	return s.triggerCommentMention(ctx, projectID, agentID, &taskID, nil, commentID, triggeredByMemberID, message)
+}
+
+// TriggerDocCommentMention is TriggerCommentMention for a comment on a
+// document: the conversation has no task, and the trigger carries the
+// document id instead so the agent knows where to look and reply.
+func (s *Service) TriggerDocCommentMention(ctx context.Context, projectID, agentID, documentID, commentID, triggeredByMemberID uuid.UUID, message string) (*agentdom.AgentConversation, error) {
+	return s.triggerCommentMention(ctx, projectID, agentID, nil, &documentID, commentID, triggeredByMemberID, message)
+}
+
+// triggerCommentMention backs both comment-mention triggers; exactly one of
+// taskID/documentID is set.
+func (s *Service) triggerCommentMention(ctx context.Context, projectID, agentID uuid.UUID, taskID, documentID *uuid.UUID, commentID, triggeredByMemberID uuid.UUID, message string) (*agentdom.AgentConversation, error) {
 	// FindAgentByID, not GetAgent/FindVisibleAgentInProject — see the same
 	// note on TriggerTaskAssigned above.
 	if _, err := s.repo.FindAgentByID(ctx, agentID); err != nil {
@@ -3048,7 +3086,7 @@ func (s *Service) TriggerCommentMention(ctx context.Context, projectID, agentID,
 	}
 	conv, err := s.createConversation(ctx, projectID, agentID, &triggeredByMemberID, agentdom.AgentConversation{
 		TriggerType:         "comment_mention",
-		TaskID:              &taskID,
+		TaskID:              taskID,
 		CommentID:           &commentID,
 		RepoPluginID:        repoPluginID,
 		EnvironmentID:       envID,
@@ -3061,12 +3099,17 @@ func (s *Service) TriggerCommentMention(ctx context.Context, projectID, agentID,
 		"conversation_id": conv.ID.String(),
 		"project_id":      projectID.String(),
 		"agent_id":        agentID.String(),
-		"task_id":         taskID.String(),
 		"comment_id":      commentID.String(),
 		"actor_member_id": triggeredByMemberID.String(),
 		"trigger_type":    "comment_mention",
 		"message":         message,
 		"repo_plugin_ids": strings.Join(repoPluginIDs, ","),
+	}
+	if taskID != nil {
+		payload["task_id"] = taskID.String()
+	}
+	if documentID != nil {
+		payload["document_id"] = documentID.String()
 	}
 	if envID != nil {
 		payload["environment_id"] = envID.String()

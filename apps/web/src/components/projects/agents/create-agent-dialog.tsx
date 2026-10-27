@@ -78,7 +78,10 @@ import {
 import { invalidateAgentDirectory } from "@/lib/agent-directory";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import { copyToClipboard } from "@/lib/clipboard";
-import { environmentQueryOptions } from "@/lib/environment-api";
+import {
+	environmentConfigQueryOptions,
+	environmentQueryOptions,
+} from "@/lib/environment-api";
 import type { Role } from "@/lib/role-api";
 import { splitShellCommand } from "@/lib/shell-command";
 import { cn } from "@/lib/utils";
@@ -219,6 +222,10 @@ export function CreateAgentDialog({
 	const [systemPrompt, setSystemPrompt] = useState("");
 	const [showApiKey, setShowApiKey] = useState(false);
 	const [dockerEnabled, setDockerEnabled] = useState(false);
+	// Older APIs predate docker_in_sandbox and always allowed it, so only an
+	// explicit false hides the toggle.
+	const { data: deploymentConfig } = useQuery(environmentConfigQueryOptions());
+	const dockerInSandbox = deploymentConfig?.docker_in_sandbox !== false;
 	const [defaultEnvironmentId, setDefaultEnvironmentIdState] = useState("");
 	const [defaultFolderId, setDefaultFolderId] = useState("");
 	// Changing the default environment clears any previously-picked default
@@ -830,6 +837,9 @@ export function CreateAgentDialog({
 											<SelectItem value="goose">
 												{t("agents.createDialog.acpProviderGoose")}
 											</SelectItem>
+											<SelectItem value="opencode">
+												{t("agents.createDialog.acpProviderOpenCode")}
+											</SelectItem>
 											<SelectSeparator />
 											<SelectItem value="custom">
 												{t("agents.createDialog.acpProviderCustom")}
@@ -1264,7 +1274,7 @@ export function CreateAgentDialog({
 									    sandbox — once a static default environment is picked, that
 									    environment's own Docker setting (set at creation) governs
 									    instead, so this toggle no longer means anything. */}
-									{!defaultEnvironmentId && (
+									{!defaultEnvironmentId && dockerInSandbox && (
 										<div className="flex items-center justify-between gap-3">
 											<div>
 												<p className="text-sm font-medium">

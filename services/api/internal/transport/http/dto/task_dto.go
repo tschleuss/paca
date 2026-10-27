@@ -390,8 +390,12 @@ type TaskResponse struct {
 	Tags         []string        `json:"tags"`
 	ViewPosition *float64        `json:"view_position,omitempty"`
 	ViewGroupKey *string         `json:"view_group_key,omitempty"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	// SubtaskCount / SubtaskDoneCount are direct-child aggregates, present on
+	// list responses only (absent means "not computed or none").
+	SubtaskCount     int       `json:"subtask_count,omitempty"`
+	SubtaskDoneCount int       `json:"subtask_done_count,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 	// AssignmentMode is "manual" or "auto" — see taskdom.Task.AssignmentMode's
 	// doc comment.
 	AssignmentMode string `json:"assignment_mode"`
@@ -418,26 +422,28 @@ func TaskFromEntity(t *taskdom.Task) TaskResponse {
 		assigneeIDs = []uuid.UUID{}
 	}
 	return TaskResponse{
-		ID:             t.ID,
-		ProjectID:      t.ProjectID,
-		TaskNumber:     t.TaskNumber,
-		Title:          t.Title,
-		TaskTypeID:     t.TaskTypeID,
-		StatusID:       t.StatusID,
-		SprintID:       t.SprintID,
-		ParentTaskID:   t.ParentTaskID,
-		Description:    t.Description,
-		Importance:     t.Importance,
-		StoryPoints:    t.StoryPoints,
-		AssigneeIDs:    assigneeIDs,
-		ReporterID:     t.ReporterID,
-		CustomFields:   cf,
-		StartDate:      t.StartDate,
-		DueDate:        t.DueDate,
-		Tags:           tags,
-		CreatedAt:      t.CreatedAt,
-		UpdatedAt:      t.UpdatedAt,
-		AssignmentMode: t.AssignmentMode,
+		ID:               t.ID,
+		ProjectID:        t.ProjectID,
+		TaskNumber:       t.TaskNumber,
+		Title:            t.Title,
+		TaskTypeID:       t.TaskTypeID,
+		StatusID:         t.StatusID,
+		SprintID:         t.SprintID,
+		ParentTaskID:     t.ParentTaskID,
+		Description:      t.Description,
+		Importance:       t.Importance,
+		StoryPoints:      t.StoryPoints,
+		AssigneeIDs:      assigneeIDs,
+		ReporterID:       t.ReporterID,
+		CustomFields:     cf,
+		StartDate:        t.StartDate,
+		DueDate:          t.DueDate,
+		Tags:             tags,
+		CreatedAt:        t.CreatedAt,
+		UpdatedAt:        t.UpdatedAt,
+		AssignmentMode:   t.AssignmentMode,
+		SubtaskCount:     t.SubtaskCount,
+		SubtaskDoneCount: t.SubtaskDoneCount,
 	}
 }
 

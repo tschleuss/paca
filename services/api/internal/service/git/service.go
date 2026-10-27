@@ -1,0 +1,481 @@
+// Package gitsvc orchestrates the platform-neutral Git integration: it links
+// repositories to projects, ingests webhook deliveries from provider plugins
+// into the event inbox, and mints short-lived credentials for the workspace
+// tools. Platform specifics stay behind gitprovider.Client.
+package gitsvc
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+
+	gitdom "github.com/Paca-AI/api/internal/domain/git"
+	"github.com/Paca-AI/api/internal/platform/gitprovider"
+)
+
+// credentialCacheTTL bounds how long a minted credential is reused in memory.
+// It is never persisted and never longer than the credential's own lifetime.
+const credentialCacheTTL = 30 * time.Second
+
+// ProviderAPI is the part of gitprovider.Client the service uses.
+type ProviderAPI interface {
+	ResolveRepository(ctx context.Context, req gitprovider.ResolveRepoRequest) (gitprovider.ResolvedRepository, error)
+	VerifyAndParseWebhook(ctx context.Context, req gitprovider.WebhookRequest) ([]gitprovider.Event, error)
+	MintCredential(ctx context.Context, req gitprovider.MintRequest) (gitprovider.Credential, error)
+	BeginIdentitySetup(ctx context.Context, req gitprovider.BeginSetupRequest) (gitprovider.SetupStep, error)
+	CompleteIdentitySetup(ctx context.Context, req gitprovider.CompleteSetupRequest) (gitprovider.Identity, error)
+	DeleteIdentity(ctx context.Context, req gitprovider.DeleteIdentityRequest) error
+	BeginAccessGrant(ctx context.Context, req gitprovider.BeginAccessRequest) (gitprovider.SetupStep, error)
+	CompleteAccessGrant(ctx context.Context, req gitprovider.CompleteAccessRequest) (gitprovider.AccessGrant, error)
+}
+
+// Providers finds the plugin that implements the Git provider SPI for a platform.
+type Providers interface {
+	Provider(ctx context.Context, providerID string) (ProviderAPI, error)
+	// Describe returns a provider's static information and capabilities.
+	Describe(ctx context.Context, providerID string) (gitprovider.Info, error)
+	// List describes every enabled provider.
+	List(ctx context.Context) ([]gitprovider.Info, error)
+}
+
+// Service is the Git integration use-case layer.
+type Service struct {
+	store     gitdom.Store
+	providers Providers
+	now       func() time.Time
+	publicURL string // the instance's externally reachable base URL, no trailing slash
+
+	namer AgentNamer // optional: names the acting agent in comment footers
+	dir   AgentDirectory
+
+	mu     sync.Mutex
+	cache  map[credKey]cachedCred
+	reruns map[uuid.UUID][]time.Time // check re-runs per repository, last hour
+	ci     map[ciKey]cachedCI        // CI summaries of change-request heads
+}
+
+// New returns a Service.
+func New(store gitdom.Store, providers Providers) *Service {
+	return &Service{store: store, providers: providers, now: time.Now, cache: map[credKey]cachedCred{}, reruns: map[uuid.UUID][]time.Time{}}
+}
+
+type credKey struct {
+	identity uuid.UUID
+	repo     uuid.UUID
+	access   gitprovider.Access
+}
+
+type cachedCred struct {
+	cred    gitprovider.Credential
+	expires time.Time
+}
+
+func identityRef(id *gitdom.Identity) gitprovider.IdentityRef {
+	return gitprovider.IdentityRef{ID: id.ProviderIdentityID, Handle: id.Handle, ProviderRef: id.ProviderRef}
+}
+
+func repoRef(r *gitdom.Repository) gitprovider.RepoRef {
+	return gitprovider.RepoRef{Host: r.Host, FullPath: r.FullPath, ExternalID: r.ExternalID,
+		DefaultBranch: r.DefaultBranch, CloneURL: r.CloneURL, ProviderRef: r.ProviderRef}
+}
+
+// LinkInput describes a repository a user wants to link to a project.
+type LinkInput struct {
+	ProjectID  uuid.UUID
+	ProviderID string
+	Host       string
+	PathOrURL  string
+	ActorID    *uuid.UUID
+}
+
+// LinkRepository resolves a user-supplied path or URL through the provider,
+// choosing the identity that can see it, and links it to the project.
+func (s *Service) LinkRepository(ctx context.Context, in LinkInput) (*gitdom.Repository, error) {
+	if strings.TrimSpace(in.PathOrURL) == "" {
+		return nil, fmt.Errorf("git: repository is required")
+	}
+	prov, err := s.providers.Provider(ctx, in.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+	// Candidates: the host's shared identity plus agent-owned identities, so a
+	// repository only an agent's own app was installed on can still be linked.
+	all, err := s.store.ListSharedIdentities(ctx, in.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+	var cands []gitprovider.IdentityRef
+	for _, id := range all {
+		if in.Host == "" || strings.EqualFold(id.Host, in.Host) {
+			cands = append(cands, identityRef(id))
+		}
+	}
+	if len(cands) == 0 {
+		return nil, gitdom.ErrNoIdentity
+	}
+	res, err := prov.ResolveRepository(ctx, gitprovider.ResolveRepoRequest{Host: in.Host, PathOrURL: in.PathOrURL, Candidates: cands})
+	if err != nil {
+		// On a platform where a user grants an identity access per account (a
+		// GitHub App is installed on an account), "not found" usually means the
+		// grant is missing: say so, so the caller can offer it.
+		if gitprovider.IsCode(err, gitprovider.CodeNotFound) || gitprovider.IsCode(err, gitprovider.CodeForbidden) {
+			if info, derr := s.providers.Describe(ctx, in.ProviderID); derr == nil && info.Capabilities.AccessGrants {
+				return nil, gitdom.ErrAccessNotGranted
+			}
+		}
+		return nil, err
+	}
+	// The plugin chooses which candidate saw the repository; it must be one we offered.
+	offered := false
+	for _, c := range cands {
+		if c.ID == res.Identity.ID {
+			offered = true
+			break
+		}
+	}
+	if !offered {
+		return nil, fmt.Errorf("git: provider resolved the repository with an identity that was not offered")
+	}
+	ident, err := s.store.FindIdentityByProviderRef(ctx, in.ProviderID, res.Identity.ID)
+	if err != nil {
+		return nil, err
+	}
+	ref := res.Repository.Ref
+	r := &gitdom.Repository{
+		ProjectID: in.ProjectID, ProviderID: in.ProviderID, Host: ref.Host, ExternalID: ref.ExternalID,
+		FullPath: ref.FullPath, DefaultBranch: ref.DefaultBranch, CloneURL: ref.CloneURL,
+		IdentityID: &ident.ID, ProviderRef: ref.ProviderRef, CreatedBy: in.ActorID,
+	}
+	if err := s.store.CreateRepository(ctx, r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+// Delivery is one raw webhook request as received by the public endpoint.
+type Delivery struct {
+	Method  string
+	Headers map[string]string // lower-cased keys
+	Query   map[string]string
+	Body    []byte
+}
+
+// WebhookResult summarizes an ingested delivery.
+type WebhookResult struct {
+	Events   int // normalized events the provider produced
+	Stored   int // new inbox rows (events × linked repositories)
+	Replayed int // rows already seen (redelivery)
+	Unlinked int // events for repositories no project linked
+}
+
+// plausibleWebhookKey reports whether key could be one this instance issued
+// (hex today, from randomKey in setup.go; letters, digits, "-" and "_" are
+// allowed, so keep this in step with that generator). The endpoint is public,
+// so anything else is turned away before it reaches the database, which would
+// reject a NUL byte as an error instead of a miss.
+func plausibleWebhookKey(key string) bool {
+	if key == "" || len(key) > 128 {
+		return false
+	}
+	for _, c := range key {
+		switch {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '-', c == '_':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// CheckWebhookEndpoint reports whether key names a webhook endpoint that can
+// receive deliveries, so the public handler can refuse before reading a body.
+func (s *Service) CheckWebhookEndpoint(ctx context.Context, key string) error {
+	if !plausibleWebhookKey(key) {
+		return gitdom.ErrNotFound
+	}
+	ep, err := s.store.FindWebhookEndpoint(ctx, key)
+	if err != nil {
+		return err
+	}
+	if ep.IdentityID == nil {
+		return gitdom.ErrNotFound
+	}
+	return nil
+}
+
+// HandleWebhook verifies a delivery through the provider and stores its events
+// in the inbox, once per linked repository. A redelivery is a no-op.
+func (s *Service) HandleWebhook(ctx context.Context, endpointKey string, d Delivery) (*WebhookResult, error) {
+	if !plausibleWebhookKey(endpointKey) {
+		return nil, gitdom.ErrNotFound
+	}
+	ep, err := s.store.FindWebhookEndpoint(ctx, endpointKey)
+	if err != nil {
+		return nil, err
+	}
+	if ep.IdentityID == nil {
+		return nil, gitdom.ErrNotFound // setup has not completed; nothing to verify against
+	}
+	ident, err := s.store.FindIdentity(ctx, *ep.IdentityID)
+	if err != nil {
+		return nil, err
+	}
+	prov, err := s.providers.Provider(ctx, ep.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+	events, err := prov.VerifyAndParseWebhook(ctx, gitprovider.WebhookRequest{
+		Identity: identityRef(ident), Method: d.Method, Headers: d.Headers, Query: d.Query, Body: d.Body,
+	})
+	if err != nil {
+		if gitprovider.IsCode(err, gitprovider.CodeInvalidSignature) {
+			return nil, gitdom.ErrInvalidSignature
+		}
+		return nil, err
+	}
+
+	res := &WebhookResult{Events: len(events)}
+	for i := range events {
+		ev := &events[i]
+		repos, err := s.store.FindLinkedRepositories(ctx, ep.ProviderID, ev.Repo.Host, ev.Repo.FullPath)
+		if err != nil {
+			return nil, err
+		}
+		if len(repos) == 0 {
+			res.Unlinked++
+			continue
+		}
+		payload, _ := json.Marshal(ev)
+		for _, repo := range repos {
+			ok, err := s.store.InsertInboxEvent(ctx, &gitdom.InboxEvent{
+				EventID: ev.ID, RepositoryID: repo.ID, EndpointKey: endpointKey,
+				Kind: string(ev.Kind), Action: ev.Action, Payload: payload, Status: gitdom.InboxReceived,
+			})
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				res.Replayed++
+				continue
+			}
+			res.Stored++
+			if err := s.trackChangeRequest(ctx, repo, ev); err != nil {
+				// A redelivery is dropped as a replay, so a row whose cache update
+				// failed must not stay behind: remove it and let the platform retry.
+				_ = s.store.DeleteInboxEvent(ctx, ev.ID, repo.ID)
+				return nil, err
+			}
+		}
+	}
+	return res, nil
+}
+
+var taskRefRE = regexp.MustCompile(`(?i)\b([a-z][a-z0-9]{0,9})-(\d{1,7})\b`)
+
+// trackChangeRequest keeps the change-request cache current from webhook events.
+func (s *Service) trackChangeRequest(ctx context.Context, repo *gitdom.Repository, ev *gitprovider.Event) error {
+	if ev.Kind != gitprovider.EventChangeRequest && ev.Kind != gitprovider.EventReview {
+		return nil
+	}
+	sub := ev.Subject
+	if sub == nil || sub.Kind != gitprovider.SubjectChangeRequest {
+		return nil
+	}
+	cr := &gitdom.ChangeRequest{RepositoryID: repo.ID, Number: sub.Number, Draft: sub.Draft, Author: sub.Author, BaseRef: sub.Base, State: crState(ev), URL: sub.URL}
+	if sub.Head != nil {
+		cr.HeadRef, cr.HeadSHA = sub.Head.Ref, sub.Head.SHA
+	}
+	switch ev.Kind { //nolint:exhaustive // the early return above leaves only these two kinds
+	case gitprovider.EventChangeRequest:
+		cr.Title = ev.Text
+		if ev.Action == "merged" {
+			now := s.now().UTC()
+			cr.MergedAt = &now
+		}
+	case gitprovider.EventReview:
+		// A review says nothing about the request's lifecycle or draft state:
+		// keep what the cache has rather than reset a merged request to open.
+		cur, err := s.store.FindChangeRequest(ctx, repo.ID, sub.Number)
+		switch {
+		case err == nil:
+			cr.State, cr.Draft, cr.MergedAt = cur.State, cur.Draft, cur.MergedAt
+		case !errors.Is(err, gitdom.ErrNotFound):
+			return err
+		}
+	}
+	_, err := s.saveChangeRequest(ctx, repo, cr)
+	return err
+}
+
+// saveChangeRequest caches a change request and links it to the task its
+// branch or title names ("feat/PACA-12-x").
+func (s *Service) saveChangeRequest(ctx context.Context, repo *gitdom.Repository, cr *gitdom.ChangeRequest) (*gitdom.ChangeRequest, error) {
+	saved, err := s.store.UpsertChangeRequest(ctx, cr)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[uuid.UUID]bool{}
+	for _, m := range taskRefRE.FindAllStringSubmatch(cr.HeadRef+" "+cr.Title, -1) {
+		n, _ := strconv.Atoi(m[2])
+		task, found, err := s.store.FindTaskByRef(ctx, repo.ProjectID, m[1], n)
+		if err != nil {
+			return nil, err
+		}
+		if !found || seen[task] {
+			continue
+		}
+		seen[task] = true
+		if err := s.store.LinkTaskToChangeRequest(ctx, task, saved.ID); err != nil {
+			return nil, err
+		}
+		if cr.HeadRef != "" {
+			if err := s.store.LinkTaskBranch(ctx, task, repo.ID, cr.HeadRef); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return saved, nil
+}
+
+func crState(ev *gitprovider.Event) string {
+	switch ev.Action {
+	case "closed":
+		return "closed"
+	case "merged":
+		return "merged"
+	}
+	return "open"
+}
+
+// MintInput asks for a credential to use on a linked repository.
+type MintInput struct {
+	RepositoryID uuid.UUID
+	Access       gitprovider.Access
+	AgentID      *uuid.UUID // the acting agent: its own identity wins over the shared one
+	ProjectID    *uuid.UUID // when set, the repository must belong to this project
+}
+
+// MintCredential returns a credential for the repository. The identity is the
+// agent's own when it has one, else the repository's, else the host's shared
+// one. Credentials are cached in memory for at most thirty seconds.
+func (s *Service) MintCredential(ctx context.Context, in MintInput) (gitprovider.Credential, error) {
+	repo, err := s.store.FindRepository(ctx, in.RepositoryID)
+	if err != nil {
+		return gitprovider.Credential{}, err
+	}
+	if in.ProjectID != nil && repo.ProjectID != *in.ProjectID {
+		return gitprovider.Credential{}, gitdom.ErrNotFound // do not reveal other projects' repositories
+	}
+	ident, err := s.pickIdentity(ctx, repo, in.AgentID)
+	if err != nil {
+		return gitprovider.Credential{}, err
+	}
+	key := credKey{identity: ident.ID, repo: repo.ID, access: in.Access}
+	if c, ok := s.cached(key); ok {
+		s.audit(ctx, repo, in.AgentID, "credential.mint", string(in.Access)+" (cached)", nil)
+		return c, nil
+	}
+	prov, err := s.providers.Provider(ctx, repo.ProviderID)
+	if err != nil {
+		return gitprovider.Credential{}, err
+	}
+	cred, err := prov.MintCredential(ctx, gitprovider.MintRequest{
+		Target: gitprovider.Target{Identity: identityRef(ident), Repo: repoRef(repo)}, Access: in.Access,
+	})
+	s.audit(ctx, repo, in.AgentID, "credential.mint", string(in.Access), err)
+	if err != nil {
+		return gitprovider.Credential{}, err
+	}
+	s.remember(key, cred)
+	return cred, nil
+}
+
+func (s *Service) pickIdentity(ctx context.Context, repo *gitdom.Repository, agent *uuid.UUID) (*gitdom.Identity, error) {
+	if agent != nil {
+		id, err := s.store.FindAgentIdentity(ctx, *agent, repo.ProviderID)
+		if err == nil {
+			return id, nil
+		}
+		if !errors.Is(err, gitdom.ErrNotFound) {
+			return nil, err
+		}
+	}
+	if repo.IdentityID != nil {
+		id, err := s.store.FindIdentity(ctx, *repo.IdentityID)
+		if err == nil {
+			return id, nil
+		}
+		if !errors.Is(err, gitdom.ErrNotFound) {
+			return nil, err
+		}
+	}
+	id, err := s.store.FindSharedIdentity(ctx, repo.ProviderID, repo.Host)
+	if errors.Is(err, gitdom.ErrNotFound) {
+		return nil, gitdom.ErrNoIdentity
+	}
+	return id, err
+}
+
+func (s *Service) cached(k credKey) (gitprovider.Credential, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.cache[k]
+	if !ok || !s.now().Before(c.expires) {
+		delete(s.cache, k)
+		return gitprovider.Credential{}, false
+	}
+	return c.cred, true
+}
+
+func (s *Service) remember(k credKey, c gitprovider.Credential) {
+	exp := s.now().Add(credentialCacheTTL)
+	// Never outlive the credential itself, leaving a margin for in-flight git use.
+	if !c.ExpiresAt.IsZero() && c.ExpiresAt.Add(-credentialCacheTTL).Before(exp) {
+		exp = c.ExpiresAt.Add(-credentialCacheTTL)
+	}
+	if !exp.After(s.now()) {
+		return
+	}
+	s.mu.Lock()
+	s.cache[k] = cachedCred{cred: c, expires: exp}
+	s.mu.Unlock()
+}
+
+// audit records an action. A failure to log must not fail the action.
+func (s *Service) audit(ctx context.Context, repo *gitdom.Repository, agent *uuid.UUID, tool, detail string, err error) {
+	e := &gitdom.ActionLogEntry{ProjectID: &repo.ProjectID, RepositoryID: &repo.ID, ActorAccountID: agent,
+		Tool: tool, Subject: repo.FullPath, OK: err == nil, Detail: detail}
+	if err != nil {
+		var pe *gitprovider.Error
+		if errors.As(err, &pe) {
+			e.Detail = detail + ": " + string(pe.Code)
+		}
+	}
+	_ = s.store.AppendActionLog(ctx, e)
+}
+
+// ListRepositories returns the repositories a project has linked.
+func (s *Service) ListRepositories(ctx context.Context, projectID uuid.UUID) ([]*gitdom.Repository, error) {
+	return s.store.ListProjectRepositories(ctx, projectID)
+}
+
+// UnlinkRepository removes a project's link to a repository. Only the link
+// goes: the platform-side repository, its webhook and the identity stay.
+func (s *Service) UnlinkRepository(ctx context.Context, projectID, repositoryID uuid.UUID) error {
+	return s.store.DeleteRepository(ctx, projectID, repositoryID)
+}
+
+// WithPublicURL sets the instance's public base URL, which webhook endpoints
+// and setup redirects are built from.
+func (s *Service) WithPublicURL(u string) *Service {
+	s.publicURL = strings.TrimRight(strings.TrimSpace(u), "/")
+	return s
+}

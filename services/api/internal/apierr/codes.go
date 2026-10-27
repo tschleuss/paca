@@ -384,6 +384,28 @@ const (
 	// operation) was called on an agent whose agent_type isn't provider_cli.
 	CodeAgentNotProviderCLI Code = "AGENT_NOT_PROVIDER_CLI"
 
+	// --- Git integration errors (see docs/ai-agent/git-agent-workflow.md) ---
+
+	// CodeGitNotFound indicates the repository, identity or webhook endpoint does not exist.
+	CodeGitNotFound Code = "GIT_NOT_FOUND"
+	// CodeGitAlreadyLinked indicates the project already linked this repository.
+	CodeGitAlreadyLinked Code = "GIT_ALREADY_LINKED"
+	// CodeGitNoIdentity indicates no bot identity is set up that can act on the repository.
+	CodeGitNoIdentity Code = "GIT_NO_IDENTITY"
+	// CodeGitProviderUnavailable indicates the provider plugin is not installed, enabled or answering.
+	CodeGitProviderUnavailable Code = "GIT_PROVIDER_UNAVAILABLE"
+	// CodeGitAccessNotGranted indicates the identity cannot see the repository because it has not been
+	// granted access to the repository's owner (for example the GitHub App is not installed there).
+	CodeGitAccessNotGranted Code = "GIT_ACCESS_NOT_GRANTED"
+	// CodeGitIdentityExists indicates the host already has a shared identity, or the agent already has its own.
+	CodeGitIdentityExists Code = "GIT_IDENTITY_EXISTS"
+	// CodeGitSetupInvalid indicates the identity-setup state is unknown, expired, already used or someone else's.
+	CodeGitSetupInvalid Code = "GIT_SETUP_INVALID"
+	// CodeGitPublicURLRequired indicates PUBLIC_URL is not configured, so webhook and redirect URLs cannot be built.
+	CodeGitPublicURLRequired Code = "GIT_PUBLIC_URL_REQUIRED"
+	// CodeGitProviderRejected indicates the platform refused the request (the identity lacks access, a conflict).
+	CodeGitProviderRejected Code = "GIT_PROVIDER_REJECTED"
+
 	// --- Environment errors (static environments — see
 	// docs/ai-agent/environment-management.md) --------------------------------
 

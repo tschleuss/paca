@@ -14,7 +14,7 @@ var (
 	ErrAgentHandleInvalid = errors.New("agent handle is invalid")
 	ErrAgentNameInvalid   = errors.New("agent name is empty or invalid")
 	ErrAgentTypeInvalid   = errors.New("agent_type must be one of: llm, acp, provider_cli")
-	ErrACPProviderInvalid = errors.New("acp_provider must be one of: claude-code, codex, gemini-cli, goose, custom")
+	ErrACPProviderInvalid = errors.New("acp_provider must be one of: claude-code, codex, gemini-cli, goose, opencode, custom")
 	ErrACPCommandRequired = errors.New("acp_command is required when acp_provider is custom")
 	// ErrFieldNotSupportedForAgentType is returned when a create/update
 	// request sets an LLM-only field (system_prompt, git_committer_name,

@@ -301,6 +301,10 @@
 			"serviceAccountsWrite": {
 				"label": "Quản lý tài khoản dịch vụ",
 				"description": "Tạo, sửa, xóa tài khoản dịch vụ và cấp hoặc thu hồi khóa API"
+			},
+			"gitIdentitiesManage": {
+				"label": "Quản lý danh tính Git",
+				"description": "Thiết lập và gỡ các danh tính GitHub (hoặc nền tảng Git khác) mà tác nhân sử dụng, trên toàn bộ không gian làm việc"
 			}
 		},
 		"permissionGroups": {
@@ -310,7 +314,8 @@
 			"projects": "Dự án",
 			"plugins": "Plugin",
 			"settings": "Cài đặt",
-			"serviceAccounts": "Tài khoản dịch vụ"
+			"serviceAccounts": "Tài khoản dịch vụ",
+			"git": "Git"
 		},
 		"defaultDialog": {
 			"title": "Đặt vai trò mặc định",
@@ -627,6 +632,70 @@
 				"deleteTitle": "Xóa tài khoản dịch vụ này",
 				"deleteHint": "Khóa API ngừng hoạt động, vai trò và tư cách thành viên dự án bị gỡ bỏ."
 			}
+		}
+	},
+	"git": {
+		"title": "Git",
+		"description": "Danh tính bot cho phép các agent clone, push và mở pull request hoặc merge request trên các nền tảng Git của bạn. Mỗi host có một danh tính dùng chung; agent cũng có thể có danh tính riêng trong phần cài đặt của mình.",
+		"noProviders": {
+			"title": "Chưa cài nhà cung cấp Git nào",
+			"description": "Hãy cài một plugin nhà cung cấp Git, chẳng hạn GitHub Integration, để thiết lập danh tính bot.",
+			"action": "Quản lý plugin"
+		},
+		"cancel": "Hủy",
+		"identity": {},
+		"setup": {
+			"button": "Thiết lập",
+			"dialogTitle": "Thiết lập {{provider}} trên {{host}}",
+			"dialogDescription": "Paca sẽ tạo trên {{host}} một danh tính bot để các agent dùng khi clone, push và làm việc với {{changeRequests}}. Bạn sẽ được chuyển đến {{host}} để phê duyệt, rồi quay lại đây.",
+			"name": "Tên ứng dụng (tùy chọn)",
+			"nameHelp": "Tên bot hiển thị trên nền tảng. Để trống để dùng mặc định.",
+			"org": "Tổ chức (tùy chọn)",
+			"orgHelp": "Để trống để tạo dưới tài khoản của chính bạn.",
+			"start": "Tiếp tục đến {{host}}",
+			"submitToken": "Lưu",
+			"public": "Cho phép cài đặt trên tài khoản khác (ứng dụng công khai)",
+			"publicHelp": "Cần khi các dự án dùng repository của những người dùng hoặc tổ chức khác nhau. Ứng dụng riêng tư chỉ cài được trên tài khoản sở hữu nó."
+		},
+		"delete": {
+			"button": "Gỡ bỏ",
+			"title": "Gỡ bỏ danh tính này?",
+			"description": "Các agent sẽ không còn hoạt động với tư cách {{name}} trên {{host}} và sẽ chuyển sang danh tính khác. Các repository đã liên kết vẫn được giữ nguyên. Ứng dụng trên nền tảng không bị xóa; hãy xóa ở đó nếu bạn không cần nữa.",
+			"confirm": "Gỡ bỏ danh tính"
+		},
+		"callback": {
+			"working": "Đang hoàn tất thiết lập…",
+			"workingHint": "Vui lòng giữ trang này mở.",
+			"failedTitle": "Không thể hoàn tất thiết lập",
+			"back": "Quay lại cài đặt Git"
+		},
+		"errors": {
+			"generic": "Đã xảy ra lỗi. Vui lòng thử lại.",
+			"setupInvalid": "Liên kết thiết lập này không hợp lệ, đã hết hạn hoặc đã được dùng. Hãy bắt đầu thiết lập lại.",
+			"identityExists": "Đã có một danh tính ở đây. Hãy gỡ bỏ nó trước để thiết lập danh tính mới.",
+			"publicUrlRequired": "URL công khai của hệ thống chưa được cấu hình (PUBLIC_URL) nên nền tảng không thể truy cập.",
+			"providerUnavailable": "Plugin nhà cung cấp Git không khả dụng. Hãy kiểm tra xem đã cài đặt và bật chưa.",
+			"providerRejected": "Nền tảng đã từ chối yêu cầu. Hãy kiểm tra quyền của tài khoản bạn đã dùng.",
+			"notFound": "Không tìm thấy."
+		},
+		"copy": "Sao chép",
+		"copied": "Đã sao chép",
+		"status": {
+			"connected": "Đã kết nối",
+			"notConnected": "Chưa kết nối"
+		},
+		"platforms": {
+			"title": "Nền tảng Git",
+			"description": "Mỗi nền tảng cần một danh tính bot dùng chung."
+		},
+		"connect": {
+			"title": "Kết nối {{provider}}",
+			"description": "Paca tạo một tài khoản bot trên {{host}} để các tác nhân đọc mã, đẩy nhánh, mở pull request và bình luận.",
+			"time": "Mất khoảng một phút. Bạn phê duyệt trên nền tảng rồi quay lại đây."
+		},
+		"connected": {
+			"sharedNote": "Dùng chung cho mọi dự án và tác nhân chưa có danh tính riêng.",
+			"mention": "Nhắc trong bình luận:"
 		}
 	}
 }

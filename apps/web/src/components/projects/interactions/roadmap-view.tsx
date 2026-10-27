@@ -1,8 +1,16 @@
-import { CalendarDays } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { CalendarDays, ChevronRight, Loader2 } from "lucide-react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-
-import type { Sprint, Task, ViewConfig } from "@/lib/interaction-api";
+import { PaneResizeHandle } from "@/components/shared/pane-resize-handle";
+import {
+	type ChildTaskFilters,
+	childTasksInfiniteQueryOptions,
+	type Sprint,
+	type Task,
+	type ViewConfig,
+} from "@/lib/interaction-api";
+import { ROADMAP_TASK_PANE, usePaneWidth } from "@/lib/pane-width";
 import type {
 	CustomFieldDefinition,
 	ProjectMember,
@@ -11,6 +19,10 @@ import type {
 } from "@/lib/project-api";
 import { cn } from "@/lib/utils";
 import { AddTaskRow } from "./add-task-row";
+import {
+	resolveSubtaskMode,
+	useSubtaskExpansion,
+} from "./use-subtask-expansion";
 import {
 	applyStatusFilterToColumnDefs,
 	buildColumnDropUpdate,
@@ -21,7 +33,6 @@ import {
 } from "./view-utils";
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
-const LEFT_COL_W = 280; // px — sticky task-name column
 const PX_PER_DAY = 28; // chart pixels per calendar day
 const MS_PER_DAY = 86_400_000;
 const PAD_DAYS = 7; // extra days buffered on each side of the date range
@@ -43,6 +54,11 @@ function fmtDate(ms: number): string {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RoadmapViewProps {
+	projectId?: string;
+	/** The view's filters/sort, applied to the tasks listed under a parent. */
+	childFilters?: ChildTaskFilters;
+	/** Identifies the view for remembering which rows are expanded. */
+	viewKey?: string;
 	tasks: Task[];
 	statuses: TaskStatus[];
 	taskTypes: TaskType[];
@@ -89,6 +105,9 @@ interface BarData {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function RoadmapView({
+	projectId,
+	childFilters,
+	viewKey = "default",
 	tasks,
 	statuses,
 	taskTypes,
@@ -108,6 +127,16 @@ export function RoadmapView({
 	pagination,
 }: RoadmapViewProps) {
 	const { t } = useTranslation("projects");
+	const { t: tShared } = useTranslation("shared");
+	const taskPane = usePaneWidth(ROADMAP_TASK_PANE);
+	const leftColW = taskPane.width;
+	const subtaskMode = resolveSubtaskMode(viewConfig);
+	const expansion = useSubtaskExpansion(
+		projectId ?? "",
+		viewKey,
+		subtaskMode === "expanded",
+	);
+	const nestable = !!projectId && subtaskMode !== "hidden";
 	const [draggingId, setDraggingId] = useState<string | null>(null);
 	const [overGroupKey, setOverGroupKey] = useState<string | null>(null);
 	const [overTaskId, setOverTaskId] = useState<string | null>(null);
@@ -283,7 +312,17 @@ export function RoadmapView({
 			});
 		}
 
-		return { leftPx, widthPx, singleDate, overdue, tooltip };
+		// Nested rows can fall outside the range computed from the top-level
+		// tasks, so keep their bars inside the chart.
+		const clampedLeft = Math.min(Math.max(0, leftPx), chartWidth - 8);
+		const clampedRight = Math.min(chartWidth, Math.max(leftPx + widthPx, 8));
+		return {
+			leftPx: clampedLeft,
+			widthPx: Math.max(8, clampedRight - clampedLeft),
+			singleDate,
+			overdue,
+			tooltip,
+		};
 	}
 
 	// ── Shared chart cell ─────────────────────────────────────────────────────
@@ -334,6 +373,90 @@ export function RoadmapView({
 	}
 
 	// ── Task row ──────────────────────────────────────────────────────────────
+	/** The clickable row (name column + bar). `depth` > 0 marks a nested child. */
+	function renderRowBody(task: Task, depth: number) {
+		const bar = getBar(task);
+		const type = taskTypes.find((tt) => tt.id === task.task_type_id) ?? null;
+		const count = task.subtask_count ?? 0;
+		const isOpen = expansion.isExpanded(task.id);
+		return (
+			// biome-ignore lint/a11y/useSemanticElements: the chevron is a real button and cannot nest inside one
+			<div
+				role="button"
+				tabIndex={0}
+				className="group flex w-full cursor-pointer border-b border-border/10 text-left last:border-0"
+				onClick={() => onTaskClick(task)}
+				onKeyDown={(e) => {
+					if (e.target !== e.currentTarget) return;
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						onTaskClick(task);
+					}
+				}}
+			>
+				{/* Sticky task name */}
+				<div
+					className={cn(
+						"sticky left-0 z-10 flex shrink-0 items-center gap-1.5",
+						"border-r border-border/20 bg-background px-4 py-2.5",
+						"group-hover:bg-muted/30 transition-colors duration-100",
+					)}
+					style={{ width: leftColW, paddingLeft: 16 + depth * 16 }}
+				>
+					{nestable &&
+						(count > 0 ? (
+							<button
+								type="button"
+								aria-expanded={isOpen}
+								aria-label={t(
+									isOpen ? "board.subtasks.collapse" : "board.subtasks.expand",
+									{ n: count },
+								)}
+								onClick={(e) => {
+									e.stopPropagation();
+									expansion.toggle(task.id);
+								}}
+								className="-ml-1.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-muted/60 hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
+							>
+								<ChevronRight
+									className={cn(
+										"size-3.5 transition-transform duration-150 motion-reduce:transition-none",
+										isOpen && "rotate-90",
+									)}
+								/>
+							</button>
+						) : (
+							<span aria-hidden className="-ml-1.5 size-6 shrink-0" />
+						))}
+					<span
+						className="size-1.5 shrink-0 rounded-full"
+						style={{
+							background:
+								type?.color ?? "oklch(var(--muted-foreground) / 0.25)",
+						}}
+					/>
+					<span className="min-w-0 truncate text-sm font-medium text-foreground/85">
+						{task.title}
+					</span>
+					{nestable && count > 0 && (
+						<span
+							title={t("board.subtasks.progress", {
+								done: task.subtask_done_count ?? 0,
+								n: count,
+							})}
+							className="shrink-0 rounded-md bg-muted/50 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground"
+						>
+							{task.subtask_done_count ?? 0}/{count}
+						</span>
+					)}
+				</div>
+
+				{/* Chart area */}
+				<ChartCell bar={bar} />
+			</div>
+		);
+	}
+
 	// Called as a function (not rendered as a component) so the draggable node
 	// isn't remounted by state changes mid-drag.
 	function renderTaskRow(
@@ -341,75 +464,60 @@ export function RoadmapView({
 		group: ColumnGroupDef,
 		groupTasks: Task[],
 	) {
-		const bar = getBar(task);
-		const type = taskTypes.find((tt) => tt.id === task.task_type_id) ?? null;
 		// Position only matters for same-group drops; cross-group drops just
 		// change the column, so don't show the "insert before" indicator.
 		const draggingInGroup = groupTasks.some((tk) => tk.id === draggingId);
 
 		return (
-			// biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop row slot
-			<div
-				key={task.id}
-				draggable={canDrag}
-				className={cn(
-					draggingId === task.id && "opacity-40",
-					canReorder &&
-						overTaskId === task.id &&
-						draggingId !== task.id &&
-						draggingInGroup &&
-						"border-t-2 border-primary/60",
-				)}
-				onDragStart={(e) => {
-					e.dataTransfer.effectAllowed = "move";
-					e.dataTransfer.setData("text/plain", task.id);
-					// Defer: empty groups render while dragging, and changing the
-					// layout synchronously inside dragstart makes Chrome cancel the
-					// drag (hit rows below an empty group, e.g. non-backlog statuses).
-					const id = task.id;
-					dragStartTimer.current = setTimeout(() => setDraggingId(id), 0);
-				}}
-				onDragEnd={resetDrag}
-				onDragOver={(e) => {
-					if (!canDrag) return;
-					e.preventDefault();
-					e.stopPropagation();
-					e.dataTransfer.dropEffect = "move";
-					setOverGroupKey(group.key);
-					setOverTaskId(task.id);
-				}}
-				onDrop={(e) => handleDrop(e, group, groupTasks, task.id)}
-			>
-				<button
-					type="button"
-					className="group flex w-full cursor-pointer border-b border-border/10 text-left last:border-0"
-					onClick={() => onTaskClick(task)}
+			<Fragment key={task.id}>
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop row slot */}
+				<div
+					draggable={canDrag}
+					className={cn(
+						draggingId === task.id && "opacity-40",
+						canReorder &&
+							overTaskId === task.id &&
+							draggingId !== task.id &&
+							draggingInGroup &&
+							"border-t-2 border-primary/60",
+					)}
+					onDragStart={(e) => {
+						e.dataTransfer.effectAllowed = "move";
+						e.dataTransfer.setData("text/plain", task.id);
+						// Defer: empty groups render while dragging, and changing the
+						// layout synchronously inside dragstart makes Chrome cancel the
+						// drag (hit rows below an empty group, e.g. non-backlog statuses).
+						const id = task.id;
+						dragStartTimer.current = setTimeout(() => setDraggingId(id), 0);
+					}}
+					onDragEnd={resetDrag}
+					onDragOver={(e) => {
+						if (!canDrag) return;
+						e.preventDefault();
+						e.stopPropagation();
+						e.dataTransfer.dropEffect = "move";
+						setOverGroupKey(group.key);
+						setOverTaskId(task.id);
+					}}
+					onDrop={(e) => handleDrop(e, group, groupTasks, task.id)}
 				>
-					{/* Sticky task name */}
-					<div
-						className={cn(
-							"sticky left-0 z-10 flex shrink-0 items-center gap-2",
-							"border-r border-border/20 bg-background px-4 py-2.5",
-							"group-hover:bg-muted/30 transition-colors duration-100",
-						)}
-						style={{ width: LEFT_COL_W }}
-					>
-						<span
-							className="size-1.5 shrink-0 rounded-full"
-							style={{
-								background:
-									type?.color ?? "oklch(var(--muted-foreground) / 0.25)",
-							}}
+					{renderRowBody(task, 0)}
+				</div>
+				{nestable &&
+					projectId &&
+					expansion.isExpanded(task.id) &&
+					(task.subtask_count ?? 0) > 0 && (
+						<RoadmapChildRows
+							projectId={projectId}
+							parent={task}
+							depth={1}
+							filters={childFilters ?? {}}
+							isExpanded={expansion.isExpanded}
+							renderRow={renderRowBody}
+							leftColWidth={leftColW}
 						/>
-						<span className="min-w-0 truncate text-sm font-medium text-foreground/85">
-							{task.title}
-						</span>
-					</div>
-
-					{/* Chart area */}
-					<ChartCell bar={bar} />
-				</button>
-			</div>
+					)}
+			</Fragment>
 		);
 	}
 
@@ -448,7 +556,7 @@ export function RoadmapView({
 				 * Single scrollable container. minWidth triggers horizontal scroll.
 				 * Left column cells are sticky left-0; header row is sticky top-0.
 				 */}
-				<div style={{ minWidth: LEFT_COL_W + chartWidth }}>
+				<div style={{ minWidth: leftColW + chartWidth }}>
 					{/* ── Sticky timeline header ───────────────────────────── */}
 					<div
 						className={cn(
@@ -462,12 +570,20 @@ export function RoadmapView({
 								"sticky left-0 z-30 flex shrink-0 items-center gap-1.5",
 								"border-r border-border/25 bg-background/95 px-4",
 							)}
-							style={{ width: LEFT_COL_W }}
+							style={{ width: leftColW }}
 						>
 							<CalendarDays className="size-3 text-muted-foreground/45" />
 							<span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/55">
 								{t("layout.roadmap.taskColumnLabel")}
 							</span>
+							<PaneResizeHandle
+								config={ROADMAP_TASK_PANE}
+								pane={taskPane}
+								label={tShared("paneResize.taskColumn")}
+								edge="right"
+								showGrip
+								testId="roadmap-task-column-resize-handle"
+							/>
 						</div>
 
 						{/* Month labels */}
@@ -588,5 +704,97 @@ export function RoadmapView({
 				</div>
 			</div>
 		</div>
+	);
+}
+
+// ─── Nested child rows ────────────────────────────────────────────────────────
+interface RoadmapChildRowsProps {
+	projectId: string;
+	parent: Task;
+	depth: number;
+	filters: ChildTaskFilters;
+	isExpanded: (taskId: string) => boolean;
+	renderRow: (task: Task, depth: number) => React.ReactNode;
+	leftColWidth: number;
+}
+
+/** The children of an expanded timeline row, fetched when it opens with the
+ *  view's filters and sort. Recurses for children that have their own. */
+function RoadmapChildRows({
+	projectId,
+	parent,
+	depth,
+	filters,
+	isExpanded,
+	renderRow,
+	leftColWidth,
+}: RoadmapChildRowsProps) {
+	const { t } = useTranslation("projects");
+	const query = useInfiniteQuery(
+		childTasksInfiniteQueryOptions(projectId, parent.id, filters),
+	);
+	const children = useMemo(
+		() => query.data?.pages.flatMap((p) => p.items) ?? [],
+		[query.data],
+	);
+	const note = (text: React.ReactNode) => (
+		<div className="flex border-b border-border/10">
+			<div
+				className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r border-border/20 bg-background py-2 pr-4 text-xs text-muted-foreground/70"
+				style={{ width: leftColWidth, paddingLeft: 40 + depth * 16 }}
+			>
+				{text}
+			</div>
+		</div>
+	);
+
+	if (query.isPending) {
+		return note(<Loader2 className="size-3 animate-spin" aria-hidden />);
+	}
+	if (query.isError) {
+		return note(
+			<>
+				{t("board.subtasks.loadError")}
+				<button
+					type="button"
+					onClick={() => query.refetch()}
+					className="font-semibold underline underline-offset-2"
+				>
+					{t("board.subtasks.retry")}
+				</button>
+			</>,
+		);
+	}
+	return (
+		<>
+			{children.length === 0 && note(t("board.subtasks.noMatch"))}
+			{children.map((child) => (
+				<Fragment key={child.id}>
+					{renderRow(child, depth)}
+					{isExpanded(child.id) && (child.subtask_count ?? 0) > 0 && (
+						<RoadmapChildRows
+							projectId={projectId}
+							parent={child}
+							depth={depth + 1}
+							filters={filters}
+							isExpanded={isExpanded}
+							renderRow={renderRow}
+							leftColWidth={leftColWidth}
+						/>
+					)}
+				</Fragment>
+			))}
+			{query.hasNextPage &&
+				note(
+					<button
+						type="button"
+						onClick={() => query.fetchNextPage()}
+						disabled={query.isFetchingNextPage}
+						className="font-semibold hover:text-foreground"
+					>
+						{t("board.subtasks.loadMore")}
+					</button>,
+				)}
+		</>
 	);
 }

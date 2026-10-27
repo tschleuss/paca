@@ -301,6 +301,10 @@
 			"serviceAccountsWrite": {
 				"label": "서비스 계정 관리",
 				"description": "서비스 계정을 만들고 편집·삭제하며 API 키를 발급·폐기"
+			},
+			"gitIdentitiesManage": {
+				"label": "Git ID 관리",
+				"description": "에이전트가 사용하는 GitHub(또는 다른 Git 플랫폼) ID를 워크스페이스 전체에서 설정하고 삭제합니다"
 			}
 		},
 		"permissionGroups": {
@@ -310,7 +314,8 @@
 			"projects": "프로젝트",
 			"plugins": "플러그인",
 			"settings": "설정",
-			"serviceAccounts": "서비스 계정"
+			"serviceAccounts": "서비스 계정",
+			"git": "Git"
 		},
 		"defaultDialog": {
 			"title": "기본 역할 설정",
@@ -627,6 +632,70 @@
 				"deleteTitle": "이 서비스 계정 삭제",
 				"deleteHint": "API 키가 작동을 멈추고 역할과 프로젝트 멤버십이 제거됩니다."
 			}
+		}
+	},
+	"git": {
+		"title": "Git",
+		"description": "에이전트가 Git 플랫폼에서 클론, 푸시, 풀 리퀘스트/머지 리퀘스트 생성을 할 수 있게 해 주는 봇 ID입니다. 호스트마다 공유 ID가 하나 있으며, 에이전트는 자체 설정에서 전용 ID를 가질 수도 있습니다.",
+		"noProviders": {
+			"title": "설치된 Git 공급자가 없습니다",
+			"description": "GitHub Integration 같은 Git 공급자 플러그인을 설치하여 봇 ID를 설정하세요.",
+			"action": "플러그인 관리"
+		},
+		"cancel": "취소",
+		"identity": {},
+		"setup": {
+			"button": "설정",
+			"dialogTitle": "{{host}}에서 {{provider}} 설정",
+			"dialogDescription": "Paca가 {{host}}에 에이전트가 클론, 푸시, {{changeRequests}} 작업에 사용할 봇 ID를 만듭니다. 승인을 위해 {{host}}로 이동한 뒤 이곳으로 돌아옵니다.",
+			"name": "앱 이름(선택)",
+			"nameHelp": "플랫폼에서 봇이 표시되는 이름입니다. 비워 두면 기본값을 사용합니다.",
+			"org": "조직(선택)",
+			"orgHelp": "비워 두면 내 계정에 만들어집니다.",
+			"start": "{{host}}(으)로 계속",
+			"submitToken": "저장",
+			"public": "다른 계정에 설치 허용(공개 앱)",
+			"publicHelp": "프로젝트마다 서로 다른 사용자나 조직의 저장소를 사용할 때 필요합니다. 비공개 앱은 소유한 계정에만 설치할 수 있습니다."
+		},
+		"delete": {
+			"button": "제거",
+			"title": "이 ID를 제거할까요?",
+			"description": "에이전트는 더 이상 {{host}}에서 {{name}}(으)로 활동하지 않고 다른 ID로 전환됩니다. 이미 연결된 저장소는 그대로 유지됩니다. 플랫폼의 앱 자체는 삭제되지 않으므로 필요 없다면 그곳에서 삭제하세요.",
+			"confirm": "ID 제거"
+		},
+		"callback": {
+			"working": "설정을 마무리하는 중…",
+			"workingHint": "이 페이지를 열어 두세요.",
+			"failedTitle": "설정을 완료할 수 없습니다",
+			"back": "Git 설정으로 돌아가기"
+		},
+		"errors": {
+			"generic": "문제가 발생했습니다. 다시 시도해 주세요.",
+			"setupInvalid": "이 설정 링크가 유효하지 않거나 만료되었거나 이미 사용되었습니다. 설정을 다시 시작하세요.",
+			"identityExists": "이미 ID가 있습니다. 새로 설정하려면 먼저 제거하세요.",
+			"publicUrlRequired": "인스턴스의 공개 URL(PUBLIC_URL)이 설정되지 않아 플랫폼이 접근할 수 없습니다.",
+			"providerUnavailable": "Git 공급자 플러그인을 사용할 수 없습니다. 설치되어 있고 활성화되었는지 확인하세요.",
+			"providerRejected": "플랫폼이 요청을 거부했습니다. 사용한 계정의 권한을 확인하세요.",
+			"notFound": "찾을 수 없습니다."
+		},
+		"copy": "복사",
+		"copied": "복사됨",
+		"status": {
+			"connected": "연결됨",
+			"notConnected": "연결 안 됨"
+		},
+		"platforms": {
+			"title": "Git 플랫폼",
+			"description": "각 플랫폼에는 공유 봇 ID가 하나 필요합니다."
+		},
+		"connect": {
+			"title": "{{provider}} 연결",
+			"description": "Paca가 {{host}}에 봇 계정을 만들고, 에이전트는 이 계정으로 코드를 읽고 브랜치를 푸시하고 풀 리퀘스트를 열고 댓글을 남깁니다.",
+			"time": "약 1분이 걸립니다. 플랫폼에서 승인한 뒤 이곳으로 돌아옵니다."
+		},
+		"connected": {
+			"sharedNote": "자체 ID가 없는 모든 프로젝트와 에이전트가 공유합니다.",
+			"mention": "댓글에서 멘션:"
 		}
 	}
 }

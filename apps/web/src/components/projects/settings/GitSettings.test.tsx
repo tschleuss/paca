@@ -1,0 +1,383 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const h = vi.hoisted(() => ({
+	get: vi.fn(),
+	post: vi.fn(),
+	del: vi.fn(),
+	put: vi.fn(),
+	follow: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", async () => {
+	const React = await import("react");
+	return {
+		Link: ({
+			to,
+			children,
+			...rest
+		}: {
+			to: string;
+			children?: React.ReactNode;
+		}) => React.createElement("a", { href: to, ...rest }, children),
+	};
+});
+
+// The query options inside git-api call its own helpers, which a module mock
+// cannot replace, so the HTTP client is mocked instead.
+const perms = vi.hoisted(() => ({ manage: true }));
+vi.mock("@/hooks/use-permissions", () => ({
+	usePermissions: () => ({
+		hasPermission: (a: string) => a !== "git.identities:manage" || perms.manage,
+	}),
+}));
+vi.mock("@/lib/api-client", () => ({
+	apiClient: {
+		instance: { get: h.get, post: h.post, delete: h.del, put: h.put },
+	},
+}));
+vi.mock("@/lib/git-api", async (orig) => ({
+	...(await orig<typeof import("@/lib/git-api")>()),
+	followGitStep: h.follow,
+}));
+
+import { GitSettings } from "./GitSettings";
+
+const PROJECT = "p1";
+const github = {
+	id: "com.paca.github",
+	display_name: "GitHub",
+	hosts: ["github.com"],
+	self_hosted_hosts: false,
+	terms: {
+		change_request: "Pull request",
+		change_request_plural: "Pull requests",
+		repository: "Repository",
+	},
+	capabilities: { multiple_identities: true },
+};
+const repo = {
+	id: "r1",
+	provider_id: "com.paca.github",
+	host: "github.com",
+	full_path: "acme/web",
+	default_branch: "main",
+	clone_url: "https://github.com/acme/web.git",
+	identity_id: "i1",
+	created_at: "2026-01-01T00:00:00Z",
+};
+
+let providers: unknown[] = [github];
+let repos: unknown[] = [];
+let settings: Record<string, unknown> = {};
+const agents = [
+	{ id: "a1", name: "Dev", handle: "dev" },
+	{ id: "a2", name: "Reviewer", handle: "reviewer" },
+];
+
+function apiFail(code: string) {
+	return Promise.reject({
+		response: { status: 409, data: { error_code: code } },
+	});
+}
+
+function renderPanel(canWrite = true) {
+	const client = new QueryClient({
+		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+	});
+	return render(
+		<QueryClientProvider client={client}>
+			<GitSettings projectId={PROJECT} canWrite={canWrite} />
+		</QueryClientProvider>,
+	);
+}
+
+describe("GitSettings", () => {
+	beforeEach(() => {
+		vi.resetAllMocks();
+		window.sessionStorage.clear();
+		providers = [github];
+		repos = [];
+		settings = {
+			default_responder_agent_id: null,
+			paused: false,
+			min_actor_permission: "write",
+		};
+		h.put.mockImplementation(async (_url: string, body: unknown) => ({
+			data: { data: body },
+		}));
+		h.follow.mockReturnValue(true);
+		h.get.mockImplementation(async (url: string) => {
+			if (url.endsWith("/git/providers")) return { data: { data: providers } };
+			if (url.endsWith("/git/repositories")) return { data: { data: repos } };
+			if (url.endsWith("/git/settings")) return { data: { data: settings } };
+			if (url.endsWith("/agents"))
+				return {
+					data: { data: { items: agents, page_size: 50, next_cursor: null } },
+				};
+			throw new Error(`unexpected GET ${url}`);
+		});
+	});
+
+	it("hides the link form without the workspace permission to manage Git identities", async () => {
+		perms.manage = false;
+		try {
+			renderPanel();
+			expect(
+				await screen.findByText(/manage Git identities/i),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: "Link" }),
+			).not.toBeInTheDocument();
+		} finally {
+			perms.manage = true;
+		}
+	});
+
+	it("lists linked repositories", async () => {
+		repos = [repo];
+		renderPanel();
+		expect(await screen.findByText("acme/web")).toBeInTheDocument();
+		expect(screen.getByText("main")).toBeInTheDocument();
+	});
+
+	it("links a repository and shows it", async () => {
+		const user = userEvent.setup();
+		h.post.mockImplementation(async () => {
+			repos = [repo];
+			return { data: { data: repo } };
+		});
+		renderPanel();
+		await user.type(
+			await screen.findByLabelText("Repository"),
+			"https://github.com/acme/web",
+		);
+		await user.click(screen.getByRole("button", { name: "Link" }));
+		expect(await screen.findByText("acme/web")).toBeInTheDocument();
+		expect(h.post).toHaveBeenCalledWith(
+			`/projects/${PROJECT}/git/repositories`,
+			{
+				provider_id: "com.paca.github",
+				path_or_url: "https://github.com/acme/web",
+			},
+		);
+	});
+
+	it("offers to install the app on the owner when the identity cannot see the repository", async () => {
+		const user = userEvent.setup();
+		h.post.mockImplementation((url: string) => {
+			if (url.endsWith("/repositories"))
+				return apiFail("GIT_ACCESS_NOT_GRANTED");
+			return Promise.resolve({
+				data: {
+					data: {
+						kind: "redirect",
+						url: "https://github.com/apps/x/installations/new",
+						state: "g1",
+					},
+				},
+			});
+		});
+		renderPanel();
+		await user.type(
+			await screen.findByLabelText("Repository"),
+			"git@github.com:other-org/lib.git",
+		);
+		await user.click(screen.getByRole("button", { name: "Link" }));
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			/can't see this repository/i,
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Install on other-org" }),
+		);
+
+		await waitFor(() => expect(h.follow).toHaveBeenCalled());
+		expect(h.post).toHaveBeenLastCalledWith(
+			`/projects/${PROJECT}/git/access/begin`,
+			{
+				provider_id: "com.paca.github",
+				owner: "other-org",
+				return_url: `${window.location.origin}/projects/${PROJECT}/settings#git`,
+			},
+		);
+		// The browser remembers which flow this state belongs to, and what was being linked.
+		expect(
+			JSON.parse(window.sessionStorage.getItem("paca.git.flow.g1") ?? "{}"),
+		).toEqual({ kind: "access", projectId: PROJECT });
+		expect(
+			JSON.parse(
+				window.sessionStorage.getItem(`paca.git.pendingLink.${PROJECT}`) ??
+					"{}",
+			),
+		).toEqual({
+			input: "git@github.com:other-org/lib.git",
+			providerId: "com.paca.github",
+		});
+	});
+
+	it("lets the platform pick the account when the owner cannot be told", async () => {
+		const user = userEvent.setup();
+		h.post.mockImplementation(() => apiFail("GIT_ACCESS_NOT_GRANTED"));
+		renderPanel();
+		await user.type(await screen.findByLabelText("Repository"), "web");
+		await user.click(screen.getByRole("button", { name: "Link" }));
+		expect(
+			await screen.findByRole("button", { name: "Choose where to install" }),
+		).toBeInTheDocument();
+	});
+
+	it("picks up where the user left off after returning from the platform", async () => {
+		window.sessionStorage.setItem(
+			`paca.git.pendingLink.${PROJECT}`,
+			JSON.stringify({ input: "acme/web", providerId: "com.paca.github" }),
+		);
+		renderPanel();
+		expect(await screen.findByDisplayValue("acme/web")).toBeInTheDocument();
+		expect(screen.getByRole("status")).toHaveTextContent("acme/web");
+		expect(
+			window.sessionStorage.getItem(`paca.git.pendingLink.${PROJECT}`),
+		).toBeNull(); // shown once
+	});
+
+	it("explains the other ways linking can fail", async () => {
+		const user = userEvent.setup();
+		for (const [code, text] of [
+			["GIT_NO_IDENTITY", /No shared Git identity/i],
+			["GIT_ALREADY_LINKED", /already linked/i],
+			["GIT_PROVIDER_UNAVAILABLE", /plugin is unavailable/i],
+		] as const) {
+			h.post.mockImplementationOnce(() => apiFail(code));
+			const { unmount } = renderPanel();
+			await user.type(await screen.findByLabelText("Repository"), "acme/web");
+			await user.click(screen.getByRole("button", { name: "Link" }));
+			expect(await screen.findByRole("alert")).toHaveTextContent(text);
+			expect(
+				screen.queryByRole("button", { name: /Install on/ }),
+			).not.toBeInTheDocument();
+			unmount();
+		}
+	});
+
+	it("unlinks only after confirmation", async () => {
+		const user = userEvent.setup();
+		repos = [repo];
+		h.del.mockImplementation(async () => {
+			repos = [];
+		});
+		renderPanel();
+		await user.click(await screen.findByRole("button", { name: "Unlink" }));
+		expect(h.del).not.toHaveBeenCalled();
+		await user.click(screen.getByRole("button", { name: "Confirm unlink" }));
+		await waitFor(() =>
+			expect(h.del).toHaveBeenCalledWith(
+				`/projects/${PROJECT}/git/repositories/r1`,
+			),
+		);
+	});
+
+	it("is read-only without git:write", async () => {
+		repos = [repo];
+		renderPanel(false);
+		expect(await screen.findByText("acme/web")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Unlink" }),
+		).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Repository")).not.toBeInTheDocument();
+	});
+
+	it("says so when no provider is installed", async () => {
+		providers = [];
+		renderPanel();
+		expect(
+			await screen.findByText(/No Git provider is installed/i),
+		).toBeInTheDocument();
+	});
+
+	it("shows only the next step to a project with nothing set up", async () => {
+		renderPanel();
+		expect(
+			await screen.findByText("No repositories linked"),
+		).toBeInTheDocument();
+		expect(screen.getByLabelText("Repository")).toBeInTheDocument();
+		expect(screen.queryByText("Get started")).toBeNull();
+		expect(screen.queryByText("Using it")).toBeNull();
+	});
+
+	it("offers the platform page when no provider is installed", async () => {
+		providers = [];
+		renderPanel();
+		expect(
+			await screen.findByRole("link", { name: "Open Git integration" }),
+		).toBeInTheDocument();
+	});
+
+	it("shows the bot to mention and how to use it once a repository is linked", async () => {
+		repos = [{ ...repo, identity_handle: "paca-bot" }];
+		settings = { ...settings, default_responder_agent_id: "a1" };
+		renderPanel();
+		expect((await screen.findAllByText("@paca-bot")).length).toBeGreaterThan(0);
+		expect(screen.getByText("Using it")).toBeInTheDocument();
+	});
+
+	it("saves a changed responder, access bar and pause switch", async () => {
+		const user = userEvent.setup();
+		repos = [repo];
+		renderPanel();
+		const responder = await screen.findByLabelText(/default responder/i);
+		await screen.findByRole("option", { name: "Reviewer" });
+		const save = screen.getByRole("button", { name: /^save$/i });
+		expect(save).toBeDisabled();
+
+		await user.selectOptions(responder, "a2");
+		await user.selectOptions(
+			screen.getByLabelText(/minimum access/i),
+			"triage",
+		);
+		await user.click(screen.getByRole("switch", { name: /pause automation/i }));
+		expect(save).toBeEnabled();
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(h.put).toHaveBeenCalledWith(`/projects/${PROJECT}/git/settings`, {
+				default_responder_agent_id: "a2",
+				paused: true,
+				min_actor_permission: "triage",
+			}),
+		);
+		expect(await screen.findByText("Saved.")).toBeInTheDocument();
+	});
+
+	it("explains a refusal when saving the automation", async () => {
+		h.put.mockRejectedValue({
+			response: { status: 404, data: { error_code: "GIT_NOT_FOUND" } },
+		});
+		const user = userEvent.setup();
+		repos = [repo];
+		renderPanel();
+		await screen.findByRole("option", { name: "Dev" });
+		await user.selectOptions(screen.getByLabelText(/default responder/i), "a1");
+		await user.click(screen.getByRole("button", { name: /^save$/i }));
+		expect(await screen.findByRole("alert")).toBeInTheDocument();
+	});
+
+	it("holds the automation back until a repository is linked", async () => {
+		renderPanel();
+		expect(
+			await screen.findByText(/Link a repository first/i),
+		).toBeInTheDocument();
+		expect(await screen.findByLabelText(/default responder/i)).toBeDisabled();
+	});
+
+	it("shows the automation but cannot change it without git:write", async () => {
+		repos = [repo];
+		renderPanel(false);
+		expect(await screen.findByLabelText(/default responder/i)).toBeDisabled();
+		expect(screen.getByLabelText(/minimum access/i)).toBeDisabled();
+		expect(
+			screen.getByRole("switch", { name: /pause automation/i }),
+		).toHaveAttribute("aria-disabled", "true");
+	});
+});

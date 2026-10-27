@@ -99,6 +99,38 @@ describe("useLoginForm", () => {
 		expect(mocks.navigateMock).toHaveBeenCalledWith({ to: "/home" });
 	});
 
+	it("opens the redirect target instead of home when one was given", async () => {
+		vi.mocked(login).mockResolvedValue(undefined);
+		mocks.invalidateQueriesMock.mockResolvedValue(undefined);
+		const assign = vi.fn();
+		const original = window.location;
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: { ...original, assign },
+		});
+
+		try {
+			renderHook(() => useLoginForm("/plugins/com.paca.github/cb?code=1"));
+			await act(async () => {
+				await mocks.capturedOnSubmit?.({
+					value: {
+						username: "alice",
+						password: "password123",
+						rememberMe: false,
+					},
+				});
+			});
+		} finally {
+			Object.defineProperty(window, "location", {
+				configurable: true,
+				value: original,
+			});
+		}
+
+		expect(assign).toHaveBeenCalledWith("/plugins/com.paca.github/cb?code=1");
+		expect(mocks.navigateMock).not.toHaveBeenCalled();
+	});
+
 	it("sets user-friendly server error for known API error codes", async () => {
 		vi.mocked(login).mockRejectedValue(new Error("nope"));
 		mocks.getApiErrorCodeMock.mockReturnValue(ApiErrorCode.InvalidCredentials);

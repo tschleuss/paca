@@ -23,7 +23,11 @@ function loginErrorMessage(
 	return t("login.errors.genericError");
 }
 
-export function useLoginForm() {
+/**
+ * `redirectTo` is a same-origin path (already sanitized by the route) to open
+ * after signing in instead of the home page.
+ */
+export function useLoginForm(redirectTo?: string) {
 	const { t } = useTranslation("auth");
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -43,6 +47,11 @@ export function useLoginForm() {
 				// cache is refreshed. Without this the sidebar keeps the previous
 				// user's data.
 				await queryClient.invalidateQueries({ queryKey: ["auth"] });
+				if (redirectTo) {
+					// A full load, so the destination starts from the fresh session.
+					window.location.assign(redirectTo);
+					return;
+				}
 				await navigate({ to: "/home" });
 			} catch (err: unknown) {
 				const code = getApiErrorCode(err);

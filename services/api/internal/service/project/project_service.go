@@ -141,6 +141,17 @@ func (s *Service) roleGrantsChanged(roleIDs []uuid.UUID) {
 	s.roles.Invalidate(ids...)
 }
 
+// accessRevoked tells the policy cache that an account lost its project
+// attachments (a removed member) or that a whole project is gone. Which roles it held does not matter to the subscribers (the
+// announcement means "recheck everyone"), so no ids are passed. Called after
+// the removal has committed.
+func (s *Service) accessRevoked() {
+	if s.roles == nil {
+		return
+	}
+	s.roles.Invalidate()
+}
+
 // New returns a configured project service.
 func New(repo projectdom.Repository, taskRepo taskBootstrapper, agents agentLookup) *Service {
 	return &Service{repo: repo, taskRepo: taskRepo, agents: agents, activity: activitysvc.Discard}
@@ -409,7 +420,12 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	// Every member's sockets in the project must leave its rooms.
+	s.accessRevoked()
+	return nil
 }
 
 // InitiateAvatarUpload starts an avatar upload for the project.

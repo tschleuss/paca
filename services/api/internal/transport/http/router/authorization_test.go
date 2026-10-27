@@ -45,7 +45,7 @@ var openRouteGroups = []struct {
 	},
 	{
 		reason: "credential exchange: the request itself carries the proof " +
-			"(password, refresh token, set-password token, webhook token) or " +
+			"(password, refresh token, set-password token, webhook token, Git webhook signature) or " +
 			"any live session may end itself",
 		routes: []string{
 			"POST /api/v1/auth/login",
@@ -54,6 +54,7 @@ var openRouteGroups = []struct {
 			"POST /api/v1/auth/password/set",
 			"POST /api/v1/auth/logout",
 			"POST /api/v1/webhooks/automations/{nodeId}",
+			"POST /api/v1/git/webhooks/{endpointKey}",
 		},
 	},
 	{
@@ -95,6 +96,7 @@ var openRouteGroups = []struct {
 			"GET /api/v1/projects/workspace-stats",
 			"GET /api/v1/port-forwards/resolve",
 			"GET /api/v1/projects/{projectId}/members/me/permissions",
+			"POST /api/v1/projects/{projectId}/members/me/permissions/check",
 		},
 	},
 	{
@@ -181,6 +183,7 @@ func allRoutes(t *testing.T, authorizer *iam.Authorizer) []routeUnderTest {
 		Skills:          handler.NewSkillsHandler(nil, ""),
 		Agent:           handler.NewAgentHandler(nil, "", "", ""),
 		Environment:     handler.NewEnvironmentHandler(nil, ""),
+		Git:             handler.NewGitHandler(nil),
 		ProjectExport:   handler.NewProjectExportHandler(nil),
 		Annotation:      handler.NewAnnotationHandler(nil),
 		Conversation:    handler.NewConversationHandler(nil),

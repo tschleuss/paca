@@ -25,6 +25,7 @@ import {
 	FolderKanban,
 	FolderOpen,
 	GanttChart,
+	GitBranch,
 	Home,
 	KanbanSquare,
 	Loader2,
@@ -56,6 +57,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { EntityAvatar } from "@/components/shared/entity-avatar";
 import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
+import { PaneResizeHandle } from "@/components/shared/pane-resize-handle";
 import { Badge } from "@/components/ui/badge";
 import {
 	DropdownMenu,
@@ -103,6 +105,7 @@ import {
 	updateFolder,
 } from "@/lib/doc-api";
 import { sprintsInfiniteQueryOptions, updateTask } from "@/lib/interaction-api";
+import { SIDEBAR_PANE, usePaneWidth } from "@/lib/pane-width";
 import type { PluginNavRegistration } from "@/lib/plugin-api";
 import { ExtensionPoint } from "@/lib/plugins/extension-point";
 import { resolvePluginIcon } from "@/lib/plugins/icon-resolver";
@@ -1780,6 +1783,9 @@ function ThemeSwitcher() {
 // ── App Sidebar ────────────────────────────────────────────────────────────────
 export function AppSidebar() {
 	const { t } = useTranslation("appShell");
+	const { t: tShared } = useTranslation("shared");
+	const { state: sidebarState, isMobile } = useSidebar();
+	const sidebarPane = usePaneWidth(SIDEBAR_PANE);
 	const { hasPermission } = usePermissions();
 	const { resolvedMode } = useThemeMode();
 	const { projectId } = useParams({ strict: false });
@@ -1811,6 +1817,8 @@ export function AppSidebar() {
 	const canAccessSettings =
 		hasPermission("settings:write") || hasPermission("settings.sso:write");
 
+	const canAccessGit = hasPermission("git.identities:manage");
+
 	const canCreateProject = hasPermission("projects:create");
 
 	// A plugin admin nav item is only listed for callers who hold its
@@ -1828,6 +1836,7 @@ export function AppSidebar() {
 		canAccessGlobalAgents ||
 		canAccessServiceAccounts ||
 		canAccessPlugins ||
+		canAccessGit ||
 		canAccessSettings;
 	// Plugin-contributed admin pages get their own sidebar section, separate
 	// from core workspace administration.
@@ -1964,6 +1973,13 @@ export function AppSidebar() {
 													exact
 												/>
 											) : null}
+											{canAccessGit ? (
+												<NavItem
+													to="/admin/git"
+													icon={GitBranch}
+													label={t("nav.git")}
+												/>
+											) : null}
 											{canAccessSettings ? (
 												<NavItem
 													to="/admin/settings"
@@ -2008,6 +2024,15 @@ export function AppSidebar() {
 			</SidebarFooter>
 
 			<SidebarRail />
+			{!isMobile && sidebarState === "expanded" && (
+				<PaneResizeHandle
+					config={SIDEBAR_PANE}
+					pane={sidebarPane}
+					label={tShared("paneResize.sidebar")}
+					edge="right"
+					testId="sidebar-resize-handle"
+				/>
+			)}
 		</Sidebar>
 	);
 }

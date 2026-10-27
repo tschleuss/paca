@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { apiClient } from "@/lib/api-client";
 import { createPluginApiClient } from "./plugin-client";
 
 function stubFetch(data: unknown) {
@@ -48,5 +49,72 @@ describe("plugin api client tasks", () => {
 		await createPluginApiClient("p1").listTasksPage({ page: 3 });
 		const url = new URL(fetchMock.mock.calls[0][0] as string);
 		expect(url.searchParams.has("page")).toBe(false);
+	});
+});
+
+describe("plugin api client session renewal", () => {
+	const unauthorized = {
+		ok: false,
+		status: 401,
+		text: async () => '{"error_code":"AUTH_UNAUTHENTICATED"}',
+	};
+	const okResponse = {
+		ok: true,
+		status: 200,
+		json: async () => ({ success: true, data: { done: true } }),
+	};
+
+	it("refreshes the session and retries once after a 401", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(unauthorized)
+			.mockResolvedValueOnce(okResponse);
+		vi.stubGlobal("fetch", fetchMock);
+		const refresh = vi
+			.spyOn(apiClient, "refreshSession")
+			.mockResolvedValue(undefined);
+
+		await expect(
+			createPluginApiClient().pluginPost("com.paca.x", "/apps/callback", {
+				a: 1,
+			}),
+		).resolves.toEqual({ done: true });
+
+		expect(refresh).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		refresh.mockRestore();
+	});
+
+	it("reports the 401 when the session cannot be refreshed", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(unauthorized);
+		vi.stubGlobal("fetch", fetchMock);
+		const refresh = vi
+			.spyOn(apiClient, "refreshSession")
+			.mockRejectedValue(new Error("refresh failed"));
+
+		await expect(
+			createPluginApiClient().pluginGet("com.paca.x", "/apps"),
+		).rejects.toThrow(/401/);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		refresh.mockRestore();
+	});
+
+	it("does not retry other failures", async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 403,
+			text: async () => "forbidden",
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const refresh = vi.spyOn(apiClient, "refreshSession");
+
+		await expect(
+			createPluginApiClient().pluginGet("com.paca.x", "/apps"),
+		).rejects.toThrow(/403/);
+
+		expect(refresh).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		refresh.mockRestore();
 	});
 });

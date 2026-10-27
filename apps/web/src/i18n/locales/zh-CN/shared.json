@@ -195,5 +195,14 @@
 		"minOne": "至少需要一个角色。",
 		"clear": "清除",
 		"placeholder": "选择角色"
+	},
+	"askQuestion": {
+		"otherPlaceholder": "或输入你自己的答案…",
+		"submit": "发送答案",
+		"answered": "你已回答:{{answer}}"
+	},
+	"paneResize": {
+		"sidebar": "调整侧边栏大小",
+		"taskColumn": "调整任务列大小"
 	}
 }

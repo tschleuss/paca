@@ -5,10 +5,10 @@ import type {
 	CreateSprintInput,
 	CreateTaskInput,
 	Document,
+	GitCredential,
+	GitRepository,
 	PacaConfig,
 	Project,
-	RepositoryCloneInfo,
-	RepositoryListItem,
 	Sprint,
 	SuccessEnvelope,
 	Task,
@@ -55,6 +55,11 @@ export class PacaAPIClient {
 			"Content-Type": "application/json",
 			"X-API-Key": this.config.apiKey,
 		};
+		// Lets core attribute what the agent posts to this conversation; core
+		// ignores it unless the calling agent owns the conversation.
+		if (this.config.conversationId) {
+			headers["X-Paca-Conversation-Id"] = this.config.conversationId;
+		}
 
 		const options: RequestInit = {
 			method,
@@ -417,32 +422,54 @@ export class PacaAPIClient {
 		await this.delete(`/api/v1/projects/${projectId}/docs/${docId}`);
 	}
 
-	// ==================== Repository Methods ====================
-	// These hit a repository plugin's own proxied backend routes (mounted at
-	// /api/v1/plugins/:pluginId/* — see PluginHandler.ProxyRequest in
-	// services/api), not a core-API endpoint. Matches whatever a repository
-	// plugin (e.g. paca-plugin-github) actually implements — ported from the
-	// equivalent request shapes in the now-removed services/ai-agent's
-	// repo_tools.py (ListRepositoriesExecutor / CloneRepositoryExecutor /
-	// PushBranchExecutor).
+	// ==================== Git Methods ====================
+	// Core's platform-neutral Git API (services/api git handler); the provider
+	// plugin behind a repository is never called directly.
 
-	async listPluginRepositories(
-		pluginId: string,
-		projectId: string,
-	): Promise<RepositoryListItem[]> {
+	async listGitRepositories(projectId: string): Promise<GitRepository[]> {
 		const response = await this.get(
-			`/api/v1/plugins/${pluginId}/projects/${projectId}/repositories`,
+			`/api/v1/projects/${projectId}/git/repositories`,
 		);
 		return Array.isArray(response) ? response : [];
 	}
 
-	async getRepositoryCloneInfo(
-		pluginId: string,
+	/**
+	 * Calls one of core's per-repository Git endpoints
+	 * (`/projects/{id}/git/repositories/{repoId}/…`): change requests, reviews,
+	 * comments, issues and CI. Core resolves the provider and the identity.
+	 */
+	async gitRepo(
+		method: "GET" | "POST" | "PATCH" | "PUT",
 		projectId: string,
 		repoId: string,
-	): Promise<RepositoryCloneInfo | undefined> {
-		return this.get(
-			`/api/v1/plugins/${pluginId}/projects/${projectId}/repositories/${repoId}/clone-info`,
+		path: string,
+		opts: {
+			query?: Record<string, string | number | undefined>;
+			body?: any;
+		} = {},
+	): Promise<any> {
+		const params = new URLSearchParams();
+		for (const [k, v] of Object.entries(opts.query ?? {})) {
+			if (v !== undefined && v !== "") params.set(k, String(v));
+		}
+		const qs = params.toString();
+		const url = `/api/v1/projects/${encodeURIComponent(projectId)}/git/repositories/${encodeURIComponent(repoId)}${path}${qs ? `?${qs}` : ""}`;
+		return this.request(
+			method,
+			url,
+			method === "GET" ? undefined : (opts.body ?? {}),
+		);
+	}
+
+	/** Mints a short-lived credential for ONE git command; a write credential needs git:write. */
+	async getGitCredential(
+		projectId: string,
+		repoId: string,
+		access: "read" | "write",
+	): Promise<GitCredential | undefined> {
+		return this.post(
+			`/api/v1/projects/${projectId}/git/repositories/${repoId}/credential/${access}`,
+			{},
 		);
 	}
 }

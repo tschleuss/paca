@@ -10,6 +10,7 @@
 				"taskStatuses": "Statuts de tâche",
 				"taskTypes": "Types de tâche",
 				"customFields": "Champs personnalisés",
+				"git": "Git",
 				"jev": "Jev IA",
 				"dangerZone": "Zone de danger",
 				"plugins": "Plugins",
@@ -20,6 +21,133 @@
 					"title": "Vous n'avez pas la permission de voir cet onglet",
 					"description": "Demandez à un propriétaire ou administrateur du projet de vous accorder l'accès à {{pluginName}}."
 				}
+			}
+		},
+		"git": {
+			"title": "Dépôts Git",
+			"description": "Dépôts sur lesquels les agents de ce projet peuvent travailler, via l'identité Git partagée de l'espace de travail.",
+			"empty": {
+				"title": "Aucun dépôt lié",
+				"description": "Liez un dépôt pour que les agents de ce projet puissent lire son code, ouvrir des pull requests et répondre aux mentions.",
+				"readOnly": "Vous avez besoin de l'accès en écriture Git sur ce projet pour lier des dépôts.",
+				"linkNeedsAdmin": "Lier un dépôt nécessite aussi l'autorisation d'espace de travail pour gérer les identités Git. Demandez à un administrateur."
+			},
+			"noProviders": "Aucun fournisseur Git n'est installé. Demandez à un administrateur d'en installer un.",
+			"link": {
+				"platform": "Plateforme",
+				"repository": "Dépôt",
+				"placeholder": "propriétaire/nom ou URL du dépôt",
+				"button": "Lier",
+				"open": "Lier un dépôt",
+				"cancel": "Annuler",
+				"help": "Collez l'URL du dépôt ou saisissez propriétaire/nom.",
+				"connectAction": "Ouvrir l'intégration Git"
+			},
+			"unlink": {
+				"button": "Délier",
+				"confirm": "Confirmer",
+				"cancel": "Annuler"
+			},
+			"resumed": "Bon retour. Liez {{repository}} maintenant.",
+			"access": {
+				"title": "L'identité partagée ne voit pas ce dépôt",
+				"description": "L'identité {{provider}} ne voit que les dépôts des comptes sur lesquels elle est installée. Installez-la sur {{owner}} (vous irez sur la plateforme puis reviendrez ici), puis liez à nouveau.",
+				"descriptionNoOwner": "L'identité {{provider}} ne voit que les dépôts des comptes sur lesquels elle est installée. Choisissez où l'installer (vous irez sur la plateforme puis reviendrez ici), puis liez à nouveau.",
+				"button": "Installer sur {{owner}}",
+				"buttonNoOwner": "Choisir où installer"
+			},
+			"errors": {
+				"generic": "Une erreur s'est produite. Veuillez réessayer.",
+				"setupInvalid": "Ce lien est invalide, expiré ou déjà utilisé. Recommencez.",
+				"identityExists": "Une identité existe déjà ici.",
+				"publicUrlRequired": "L'URL publique de l'instance (PUBLIC_URL) n'est pas configurée.",
+				"providerUnavailable": "Le plugin du fournisseur Git est indisponible.",
+				"providerRejected": "La plateforme a refusé la demande.",
+				"notFound": "Introuvable.",
+				"accessNotGranted": "L'identité partagée ne voit pas ce dépôt.",
+				"noIdentity": "Aucune identité Git partagée n'est configurée pour cette plateforme. Un administrateur de l'espace de travail la configure dans Administration → Git.",
+				"alreadyLinked": "Ce dépôt est déjà lié au projet."
+			},
+			"triggerKinds": {
+				"mention": {
+					"label": "Mention",
+					"description": "Quelqu'un mentionne le bot dans un commentaire, une relecture ou une description."
+				},
+				"own_cr_feedback": {
+					"label": "Retours sur sa pull request",
+					"description": "Une relecture ou un commentaire arrive sur une pull request ouverte par cet agent."
+				},
+				"ci_failure": {
+					"label": "Échec de la CI sur sa pull request",
+					"description": "Une vérification échoue sur le dernier commit d'une pull request ouverte par cet agent (quelques tentatives au plus)."
+				},
+				"review_request": {
+					"label": "Relecture demandée",
+					"description": "Le bot est demandé comme relecteur, lorsque la plateforme le permet."
+				},
+				"assignment": {
+					"label": "Assignation",
+					"description": "Le bot est assigné à un ticket ou une pull request, lorsque la plateforme le permet."
+				},
+				"label": {
+					"label": "Étiquette",
+					"description": "L'étiquette « paca » (ou « paca:<identifiant de l'agent> ») est ajoutée à un ticket ou une pull request."
+				},
+				"auto_review": {
+					"label": "Relire chaque pull request",
+					"description": "Relit automatiquement chaque nouvelle pull request. Désactivé tant que vous ne l'activez pas ; les brouillons et les pull requests de l'agent lui-même sont ignorés."
+				}
+			},
+			"repositories": {
+				"title": "Dépôts",
+				"description": "Les agents de ce projet peuvent travailler sur ces dépôts.",
+				"mention": "Mentionner dans les commentaires :"
+			},
+			"automation": {
+				"title": "Automatisation",
+				"description": "Décidez comment l'activité Git démarre vos agents.",
+				"locked": "Liez d'abord un dépôt. Ces réglages s'appliquent aux dépôts liés à ce projet.",
+				"responder": {
+					"label": "Répondant par défaut",
+					"none": "Aucun répondant par défaut",
+					"help": "Répond aux mentions, labels et demandes de revue qui ne nomment aucun agent. Ajoutez « agent:<handle> » à une mention pour choisir un autre agent.",
+					"warning": "Sans répondant par défaut, les mentions qui ne nomment aucun agent sont ignorées."
+				},
+				"minPermission": {
+					"label": "Accès minimal pour démarrer un agent",
+					"help": "Une personne avec moins d'accès au dépôt peut commenter, mais l'agent ne s'exécutera pas."
+				},
+				"permission": {
+					"read": "Lecture",
+					"triage": "Triage",
+					"write": "Écriture",
+					"maintain": "Maintenance",
+					"admin": "Administrateur"
+				},
+				"paused": {
+					"label": "Mettre l'automatisation en pause",
+					"help": "En pause, aucune activité Git ne démarre d'agent. Les exécutions en cours se terminent."
+				},
+				"save": "Enregistrer",
+				"saved": "Enregistré.",
+				"advanced": "Avancé"
+			},
+			"usage": {
+				"title": "Utilisation",
+				"description": "Trois façons de démarrer un agent depuis votre plateforme Git.",
+				"mention": {
+					"title": "Mentionnez le bot",
+					"description": "Commentez une issue ou une pull request. Le répondant par défaut répond."
+				},
+				"pick": {
+					"title": "Choisissez un agent",
+					"description": "Ajoutez agent:<handle> à la mention pour choisir l'agent qui répond."
+				},
+				"label": {
+					"title": "Ajoutez un label",
+					"description": "Ajoutez le label « paca » à une issue ou une pull request."
+				},
+				"automatic": "Les agents peuvent aussi démarrer seuls, par exemple pour suivre leurs pull requests ou relire chaque nouvelle. Activez cela dans l'onglet Git de chaque agent."
 			}
 		}
 	},
@@ -61,6 +189,7 @@
 			"acpProviderCodex": "Codex",
 			"acpProviderGeminiCli": "Gemini CLI",
 			"acpProviderGoose": "Goose",
+			"acpProviderOpenCode": "OpenCode",
 			"acpProviderCustom": "Personnalisé…",
 			"acpCommandLabel": "Commande",
 			"acpCommandPlaceholder": "npx -y my-acp-server",
@@ -154,6 +283,7 @@
 			"stepSkillMcpDescription": "Générez la propre clé MCP de cet agent une seule fois, puis exécutez les deux commandes ci-dessous — les appels d'outils apparaîtront comme l'activité de l'agent, pas la vôtre.",
 			"stepSkillMcpSkillLabel": "Installer la compétence :",
 			"stepSkillMcpConnectLabel": "Connecter le serveur MCP :",
+			"stepSkillMcpConnectLabelConfig": "Ajoutez ceci à {{file}} (fusionnez-le avec toute section \"{{section}}\" existante) :",
 			"step3NotAvailable": "L'installation automatique est disponible pour Claude Code, Gemini CLI et Codex. {{provider}} n'a pas encore d'installateur de prompts personnalisés connu — les outils MCP de Paca ci-dessous fonctionnent quand même sans elle.",
 			"step3ViewContent": "Voir les instructions de la compétence",
 			"step4NoKeyYet": "Générez une clé pour afficher les commandes de configuration.",
@@ -173,7 +303,8 @@
 				"skills": "Compétences",
 				"envVars": "Environnement",
 				"globalRole": "Rôle global",
-				"activity": "Activité"
+				"activity": "Activité",
+				"git": "Git"
 			},
 			"globalRole": {
 				"title": "Rôle global",
@@ -244,6 +375,7 @@
 				"acpProviderCodex": "Codex",
 				"acpProviderGeminiCli": "Gemini CLI",
 				"acpProviderGoose": "Goose",
+				"acpProviderOpenCode": "OpenCode",
 				"acpProviderCustom": "Personnalisé…",
 				"acpCommandLabel": "Commande",
 				"acpCommandHint": "Commande séparée par des espaces utilisée pour lancer votre serveur ACP.",
@@ -373,6 +505,69 @@
 			},
 			"system": {
 				"badge": "Système"
+			},
+			"git": {
+				"title": "Identité Git",
+				"description": "Par défaut, cet agent agit via l'identité Git partagée de l'espace de travail. Donnez-lui sa propre identité pour que ses commits, pull requests et commentaires apparaissent sous un bot distinct, et installez-la sur les comptes et organisations dont il utilise les dépôts.",
+				"providersUnavailable": "Impossible de charger les fournisseurs Git de ce projet.",
+				"noProviders": {
+					"title": "Aucune plateforme Git disponible",
+					"description": "Demandez à un administrateur d'installer un plugin de fournisseur Git et de le connecter. Les agents pourront ensuite travailler sur des dépôts."
+				},
+				"ownIdentity": "Identité propre",
+				"usesShared": "Utilise l'identité partagée",
+				"singleIdentity": "Cette plateforme n'a qu'une identité par hôte ; l'identité partagée est donc utilisée.",
+				"remove": "Retirer",
+				"create": {
+					"title": "Donnez à cet agent sa propre identité",
+					"description": "Ses commits, pull requests et commentaires apparaîtront sous un bot distinct et on pourra le mentionner par son nom. Vous le validez sur la plateforme et l'installez aussitôt.",
+					"button": "Créer l'identité"
+				},
+				"askAdmin": "Demandez à un administrateur de l'espace de travail d'en créer une.",
+				"install": {
+					"label": "Installer sur un autre compte ou une autre organisation",
+					"placeholder": "compte ou organisation (facultatif)",
+					"button": "Installer",
+					"help": "Ouvre la page d'installation de la plateforme. Laissez le nom vide pour choisir le compte sur place.",
+					"title": "Installer sur un autre compte ou une autre organisation"
+				},
+				"triggers": {
+					"title": "Déclencheurs Git",
+					"description": "Quels événements Git déclenchent cet agent. Seuls les événements que les fournisseurs Git installés peuvent livrer sont listés.",
+					"filters": {
+						"branches": "Uniquement ces branches cibles",
+						"authors": "Uniquement ces auteurs",
+						"help": "Séparés par des virgules. Laissez vide pour tout inclure. Les auteurs qui sont des bots doivent figurer dans la liste pour être relus.",
+						"save": "Enregistrer les filtres"
+					},
+					"unsupported": "Non pris en charge par les plateformes Git connectées.",
+					"groups": {
+						"requests": {
+							"title": "Répondre aux demandes",
+							"description": "Démarre quand quelqu'un sollicite cet agent."
+						},
+						"followUp": {
+							"title": "Suivre ses propres pull requests",
+							"description": "Démarre quand quelque chose se passe sur une pull request ouverte par cet agent."
+						},
+						"proactive": {
+							"title": "Agir de sa propre initiative",
+							"description": "Démarre sans qu'on le demande. Désactivé par défaut."
+						}
+					}
+				},
+				"identity": {
+					"title": "Identité",
+					"description": "Le compte que cet agent utilise sur chaque plateforme Git."
+				},
+				"own": {
+					"description": "Cet agent a son propre bot : ses commits, pull requests et commentaires apparaissent sous un nom distinct.",
+					"mention": "Mentionnez-le avec :"
+				},
+				"shared": {
+					"description": "Cet agent agit via le bot partagé de l'espace de travail, comme les autres agents."
+				},
+				"permissions": "Ce que cet agent peut faire sur Git dépend de son rôle dans le projet : l'accès en lecture et en écriture vient des permissions Git du rôle. Approuver et fusionner des pull requests n'est pas accordé par défaut."
 			}
 		},
 		"conversationView": {
@@ -893,6 +1088,22 @@
 			"projectExport": {
 				"label": "Exporter les données du projet",
 				"description": "Exporter les tâches (avec commentaires et activités) et la documentation de ce projet"
+			},
+			"gitRead": {
+				"label": "Voir Git",
+				"description": "Voir les dépôts liés au projet"
+			},
+			"gitWrite": {
+				"label": "Gérer Git",
+				"description": "Lier et délier des dépôts, accorder l'accès aux dépôts et autoriser les agents à pousser des modifications"
+			},
+			"gitApprove": {
+				"label": "Approuver les demandes de modification",
+				"description": "Approuver les pull requests et merge requests, ce qui peut satisfaire une relecture obligatoire. Commenter et demander des modifications ne nécessite que Gérer Git."
+			},
+			"gitMerge": {
+				"label": "Fusionner les demandes de modification",
+				"description": "Fusionner les pull requests et merge requests dans leur branche cible. La protection de branche de la plateforme s'applique toujours."
 			}
 		},
 		"permissionGroups": {
@@ -908,7 +1119,8 @@
 			"environments": "Environnements",
 			"annotations": "Annotations",
 			"workflows": "Automatisation",
-			"plugins": "Plugins"
+			"plugins": "Plugins",
+			"git": "Git"
 		}
 	},
 	"settings": {
@@ -1622,6 +1834,66 @@
 		"searchableList": {
 			"searchPlaceholder": "Rechercher…",
 			"noResults": "Aucun résultat"
+		},
+		"git": {
+			"branches": "Branches",
+			"pullRequests": "Pull requests",
+			"linkBranch": "Lier une branche",
+			"newBranch": "Nouvelle branche",
+			"linkPullRequest": "Lier une pull request",
+			"noBranches": "Aucune branche liée pour l'instant.",
+			"noPullRequests": "Aucune pull request liée pour l'instant.",
+			"by": "par {{author}}",
+			"unlink": "Délier",
+			"unlinkPullRequest": "Délier la pull request {{name}}",
+			"unlinkBranch": "Délier la branche {{name}}",
+			"copyCheckout": "Copier la commande de checkout",
+			"copy": "Copier",
+			"copied": "Copié",
+			"state": {
+				"open": "Ouverte",
+				"draft": "Brouillon",
+				"merged": "Fusionnée",
+				"closed": "Fermée"
+			},
+			"ci": {
+				"passing": "CI réussie",
+				"failing": "CI en échec",
+				"pending": "CI en cours",
+				"failingNames": "En échec : {{names}}",
+				"counts": "{{passed}} vérifications sur {{total}} réussies"
+			},
+			"forms": {
+				"selectRepository": "Sélectionner un dépôt…",
+				"cancel": "Annuler",
+				"pullRequest": "Pull request",
+				"pullRequestHint": "Collez le lien de la pull request ou saisissez son numéro.",
+				"willLink": "{{what}} de {{repository}} sera lié",
+				"repository": "Dépôt",
+				"linkPullRequest": "Lier la pull request",
+				"existingBranch": "Branche existante",
+				"branchHint": "Saisissez un nom de branche ou collez un lien vers celle-ci.",
+				"linkBranch": "Lier la branche",
+				"branchType": "Type",
+				"branchName": "Nom de la branche",
+				"branchFrom": "Créer depuis",
+				"branchFromHint": "Facultatif — par défaut, la branche par défaut du dépôt.",
+				"createBranch": "Créer la branche",
+				"orLocally": "Ou la créer en local"
+			},
+			"errors": {
+				"notFound": "Introuvable dans ce dépôt.",
+				"rejected": "La plateforme Git a refusé la requête pour ce dépôt.",
+				"unavailable": "Le fournisseur Git est momentanément indisponible. Réessayez.",
+				"noIdentity": "Aucune identité Git ne peut agir sur ce dépôt.",
+				"forbidden": "Vous n'avez pas l'accès nécessaire.",
+				"generic": "Une erreur s'est produite. Réessayez.",
+				"repoNotLinked": "« {{repository}} » n'est pas lié à ce projet.",
+				"selectRepository": "Sélectionnez un dépôt.",
+				"invalidNumber": "Saisissez un numéro ou collez un lien.",
+				"branchRequired": "Saisissez un nom de branche ou collez un lien.",
+				"createRefused": "La plateforme n'a pas pu créer cette branche (le nom est peut-être déjà pris ou invalide)."
+			}
 		}
 	},
 	"portForwardDetail": {
@@ -1793,6 +2065,19 @@
 		"backlog": {
 			"title": "Backlog produit",
 			"description": "Tous les éléments de travail non assignés à un sprint."
+		},
+		"subtasks": {
+			"expand": "Développer {{n}} sous-tâches",
+			"collapse": "Réduire {{n}} sous-tâches",
+			"progress": "{{done}} sous-tâches terminées sur {{n}}",
+			"loading": "Chargement des sous-tâches",
+			"loadError": "Impossible de charger les sous-tâches.",
+			"retry": "Réessayer",
+			"matching": "{{n}} sous-tâches sur {{total}} correspondent aux filtres actuels",
+			"noMatch": "Aucune sous-tâche ne correspond aux filtres actuels",
+			"loadMore": "Charger plus de sous-tâches",
+			"add": "Ajouter une sous-tâche",
+			"addPlaceholder": "Titre de la sous-tâche"
 		}
 	},
 	"conversationsPage": {
@@ -1935,7 +2220,11 @@
 			"tagsFilter": {
 				"addTag": "Ajouter une étiquette",
 				"addTagPlaceholder": "Ajouter une étiquette..."
-			}
+			},
+			"subtasksLabel": "Sous-tâches",
+			"subtasksCollapsed": "Imbriquées, réduites",
+			"subtasksExpanded": "Imbriquées, développées",
+			"subtasksHidden": "Masquées (liste à plat)"
 		},
 		"roadmap": {
 			"taskColumnLabel": "Tâche",

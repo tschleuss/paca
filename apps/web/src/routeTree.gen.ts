@@ -26,9 +26,12 @@ import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminServiceAccountsIndexRouteImport } from './routes/_authenticated/admin/service-accounts/index'
 import { Route as AuthenticatedAdminPluginsIndexRouteImport } from './routes/_authenticated/admin/plugins/index'
 import { Route as AuthenticatedAdminGlobalRolesIndexRouteImport } from './routes/_authenticated/admin/global-roles/index'
+import { Route as AuthenticatedAdminGitIndexRouteImport } from './routes/_authenticated/admin/git/index'
 import { Route as AuthenticatedAdminChangelogIndexRouteImport } from './routes/_authenticated/admin/changelog/index'
 import { Route as AuthenticatedAdminAgentsIndexRouteImport } from './routes/_authenticated/admin/agents/index'
 import { Route as AuthenticatedProjectsProjectIdConversationsRouteImport } from './routes/_authenticated/projects/$projectId/conversations'
+import { Route as AuthenticatedPluginPagesPluginIdSlugRouteImport } from './routes/_authenticated/plugin-pages/$pluginId/$slug'
+import { Route as AuthenticatedGitSetupCallbackRouteImport } from './routes/_authenticated/git/setup/callback'
 import { Route as AuthenticatedProjectsProjectIdTeamIndexRouteImport } from './routes/_authenticated/projects/$projectId/team/index'
 import { Route as AuthenticatedProjectsProjectIdSettingsIndexRouteImport } from './routes/_authenticated/projects/$projectId/settings/index'
 import { Route as AuthenticatedProjectsProjectIdEnvironmentsIndexRouteImport } from './routes/_authenticated/projects/$projectId/environments/index'
@@ -151,6 +154,12 @@ const AuthenticatedAdminGlobalRolesIndexRoute =
     path: '/admin/global-roles/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminGitIndexRoute =
+  AuthenticatedAdminGitIndexRouteImport.update({
+    id: '/admin/git/',
+    path: '/admin/git/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminChangelogIndexRoute =
   AuthenticatedAdminChangelogIndexRouteImport.update({
     id: '/admin/changelog/',
@@ -168,6 +177,18 @@ const AuthenticatedProjectsProjectIdConversationsRoute =
     id: '/conversations',
     path: '/conversations',
     getParentRoute: () => AuthenticatedProjectsProjectIdRoute,
+  } as any)
+const AuthenticatedPluginPagesPluginIdSlugRoute =
+  AuthenticatedPluginPagesPluginIdSlugRouteImport.update({
+    id: '/plugin-pages/$pluginId/$slug',
+    path: '/plugin-pages/$pluginId/$slug',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedGitSetupCallbackRoute =
+  AuthenticatedGitSetupCallbackRouteImport.update({
+    id: '/git/setup/callback',
+    path: '/git/setup/callback',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedProjectsProjectIdTeamIndexRoute =
   AuthenticatedProjectsProjectIdTeamIndexRouteImport.update({
@@ -341,9 +362,12 @@ export interface FileRoutesByFullPath {
   '/conversations/': typeof AuthenticatedConversationsIndexRoute
   '/home/': typeof AuthenticatedHomeIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
+  '/git/setup/callback': typeof AuthenticatedGitSetupCallbackRoute
+  '/plugin-pages/$pluginId/$slug': typeof AuthenticatedPluginPagesPluginIdSlugRoute
   '/projects/$projectId/conversations': typeof AuthenticatedProjectsProjectIdConversationsRouteWithChildren
   '/admin/agents/': typeof AuthenticatedAdminAgentsIndexRoute
   '/admin/changelog/': typeof AuthenticatedAdminChangelogIndexRoute
+  '/admin/git/': typeof AuthenticatedAdminGitIndexRoute
   '/admin/global-roles/': typeof AuthenticatedAdminGlobalRolesIndexRoute
   '/admin/plugins/': typeof AuthenticatedAdminPluginsIndexRoute
   '/admin/service-accounts/': typeof AuthenticatedAdminServiceAccountsIndexRoute
@@ -385,8 +409,11 @@ export interface FileRoutesByTo {
   '/conversations': typeof AuthenticatedConversationsIndexRoute
   '/home': typeof AuthenticatedHomeIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
+  '/git/setup/callback': typeof AuthenticatedGitSetupCallbackRoute
+  '/plugin-pages/$pluginId/$slug': typeof AuthenticatedPluginPagesPluginIdSlugRoute
   '/admin/agents': typeof AuthenticatedAdminAgentsIndexRoute
   '/admin/changelog': typeof AuthenticatedAdminChangelogIndexRoute
+  '/admin/git': typeof AuthenticatedAdminGitIndexRoute
   '/admin/global-roles': typeof AuthenticatedAdminGlobalRolesIndexRoute
   '/admin/plugins': typeof AuthenticatedAdminPluginsIndexRoute
   '/admin/service-accounts': typeof AuthenticatedAdminServiceAccountsIndexRoute
@@ -432,9 +459,12 @@ export interface FileRoutesById {
   '/_authenticated/conversations/': typeof AuthenticatedConversationsIndexRoute
   '/_authenticated/home/': typeof AuthenticatedHomeIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
+  '/_authenticated/git/setup/callback': typeof AuthenticatedGitSetupCallbackRoute
+  '/_authenticated/plugin-pages/$pluginId/$slug': typeof AuthenticatedPluginPagesPluginIdSlugRoute
   '/_authenticated/projects/$projectId/conversations': typeof AuthenticatedProjectsProjectIdConversationsRouteWithChildren
   '/_authenticated/admin/agents/': typeof AuthenticatedAdminAgentsIndexRoute
   '/_authenticated/admin/changelog/': typeof AuthenticatedAdminChangelogIndexRoute
+  '/_authenticated/admin/git/': typeof AuthenticatedAdminGitIndexRoute
   '/_authenticated/admin/global-roles/': typeof AuthenticatedAdminGlobalRolesIndexRoute
   '/_authenticated/admin/plugins/': typeof AuthenticatedAdminPluginsIndexRoute
   '/_authenticated/admin/service-accounts/': typeof AuthenticatedAdminServiceAccountsIndexRoute
@@ -480,9 +510,12 @@ export interface FileRouteTypes {
     | '/conversations/'
     | '/home/'
     | '/profile/'
+    | '/git/setup/callback'
+    | '/plugin-pages/$pluginId/$slug'
     | '/projects/$projectId/conversations'
     | '/admin/agents/'
     | '/admin/changelog/'
+    | '/admin/git/'
     | '/admin/global-roles/'
     | '/admin/plugins/'
     | '/admin/service-accounts/'
@@ -524,8 +557,11 @@ export interface FileRouteTypes {
     | '/conversations'
     | '/home'
     | '/profile'
+    | '/git/setup/callback'
+    | '/plugin-pages/$pluginId/$slug'
     | '/admin/agents'
     | '/admin/changelog'
+    | '/admin/git'
     | '/admin/global-roles'
     | '/admin/plugins'
     | '/admin/service-accounts'
@@ -570,9 +606,12 @@ export interface FileRouteTypes {
     | '/_authenticated/conversations/'
     | '/_authenticated/home/'
     | '/_authenticated/profile/'
+    | '/_authenticated/git/setup/callback'
+    | '/_authenticated/plugin-pages/$pluginId/$slug'
     | '/_authenticated/projects/$projectId/conversations'
     | '/_authenticated/admin/agents/'
     | '/_authenticated/admin/changelog/'
+    | '/_authenticated/admin/git/'
     | '/_authenticated/admin/global-roles/'
     | '/_authenticated/admin/plugins/'
     | '/_authenticated/admin/service-accounts/'
@@ -734,6 +773,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminGlobalRolesIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/git/': {
+      id: '/_authenticated/admin/git/'
+      path: '/admin/git'
+      fullPath: '/admin/git/'
+      preLoaderRoute: typeof AuthenticatedAdminGitIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/changelog/': {
       id: '/_authenticated/admin/changelog/'
       path: '/admin/changelog'
@@ -754,6 +800,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId/conversations'
       preLoaderRoute: typeof AuthenticatedProjectsProjectIdConversationsRouteImport
       parentRoute: typeof AuthenticatedProjectsProjectIdRoute
+    }
+    '/_authenticated/plugin-pages/$pluginId/$slug': {
+      id: '/_authenticated/plugin-pages/$pluginId/$slug'
+      path: '/plugin-pages/$pluginId/$slug'
+      fullPath: '/plugin-pages/$pluginId/$slug'
+      preLoaderRoute: typeof AuthenticatedPluginPagesPluginIdSlugRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/git/setup/callback': {
+      id: '/_authenticated/git/setup/callback'
+      path: '/git/setup/callback'
+      fullPath: '/git/setup/callback'
+      preLoaderRoute: typeof AuthenticatedGitSetupCallbackRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/projects/$projectId/team/': {
       id: '/_authenticated/projects/$projectId/team/'
@@ -1052,8 +1112,11 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProjectsProjectIdRoute: typeof AuthenticatedProjectsProjectIdRouteWithChildren
   AuthenticatedHomeIndexRoute: typeof AuthenticatedHomeIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
+  AuthenticatedGitSetupCallbackRoute: typeof AuthenticatedGitSetupCallbackRoute
+  AuthenticatedPluginPagesPluginIdSlugRoute: typeof AuthenticatedPluginPagesPluginIdSlugRoute
   AuthenticatedAdminAgentsIndexRoute: typeof AuthenticatedAdminAgentsIndexRoute
   AuthenticatedAdminChangelogIndexRoute: typeof AuthenticatedAdminChangelogIndexRoute
+  AuthenticatedAdminGitIndexRoute: typeof AuthenticatedAdminGitIndexRoute
   AuthenticatedAdminGlobalRolesIndexRoute: typeof AuthenticatedAdminGlobalRolesIndexRoute
   AuthenticatedAdminPluginsIndexRoute: typeof AuthenticatedAdminPluginsIndexRoute
   AuthenticatedAdminServiceAccountsIndexRoute: typeof AuthenticatedAdminServiceAccountsIndexRoute
@@ -1071,8 +1134,12 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedProjectsProjectIdRouteWithChildren,
   AuthenticatedHomeIndexRoute: AuthenticatedHomeIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
+  AuthenticatedGitSetupCallbackRoute: AuthenticatedGitSetupCallbackRoute,
+  AuthenticatedPluginPagesPluginIdSlugRoute:
+    AuthenticatedPluginPagesPluginIdSlugRoute,
   AuthenticatedAdminAgentsIndexRoute: AuthenticatedAdminAgentsIndexRoute,
   AuthenticatedAdminChangelogIndexRoute: AuthenticatedAdminChangelogIndexRoute,
+  AuthenticatedAdminGitIndexRoute: AuthenticatedAdminGitIndexRoute,
   AuthenticatedAdminGlobalRolesIndexRoute:
     AuthenticatedAdminGlobalRolesIndexRoute,
   AuthenticatedAdminPluginsIndexRoute: AuthenticatedAdminPluginsIndexRoute,

@@ -171,6 +171,7 @@ These report the caller's effective IAM actions so the UI can show or hide featu
 |---|---|---|---|
 | `GET` | `/users/me/global-permissions` | any authenticated user | The caller's platform-level actions. |
 | `GET` | `/projects/:projectId/members/me/permissions` | any authenticated caller | The caller's effective actions in the project. |
+| `POST` | `/projects/:projectId/members/me/permissions/check` | any authenticated caller | Whether the caller may perform each `{action, resource}` pair (resources inside the project); `{"allowed": [...]}`. Used by realtime to authorize each event. |
 | `GET` | `/agents/me/global-permissions` | the agent's own API key | The calling agent's own platform-level actions. |
 
 ```json

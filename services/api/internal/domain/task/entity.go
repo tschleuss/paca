@@ -232,4 +232,9 @@ type Task struct {
 	// with a view_position sort (i.e. view_id provided + manual sort). It is not
 	// persisted in the tasks table.
 	ViewPosition *float64
+	// SubtaskCount and SubtaskDoneCount are transient aggregates populated only
+	// by ListTasks: the number of live direct children, and how many of them
+	// sit in a status of category "done". Not persisted.
+	SubtaskCount     int
+	SubtaskDoneCount int
 }

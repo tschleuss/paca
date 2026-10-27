@@ -34,6 +34,9 @@ type Service struct {
 	avatarSvc              attachmentdom.AvatarService
 	tokenRepo              userdom.PasswordSetTokenRepository
 	publisher              *messaging.Publisher
+	// grants is told when an account's access is revoked (see accessRevoked).
+	// Nil is valid: nothing is announced.
+	grants events.PolicyInvalidator
 }
 
 // ErrAvatarServiceRequired indicates a missing AvatarService dependency when
@@ -80,6 +83,22 @@ func (s *Service) WithPasswordSetTokenRepo(repo userdom.PasswordSetTokenReposito
 func (s *Service) WithEventPublishing(publisher *messaging.Publisher) *Service {
 	s.publisher = publisher
 	return s
+}
+
+// WithGrantsNotifier wires in the policy cache invalidation called after an
+// account loses its access (a deleted user). *iam.Authorizer, wrapped by
+// events.NotifyIAMChanges, implements it.
+func (s *Service) WithGrantsNotifier(inv events.PolicyInvalidator) *Service {
+	s.grants = inv
+	return s
+}
+
+// accessRevoked tells the policy cache that an account's grants are gone.
+// Which roles it held does not matter to the subscribers, so no ids are passed.
+func (s *Service) accessRevoked() {
+	if s.grants != nil {
+		s.grants.Invalidate()
+	}
 }
 
 // GetByID returns a user by primary key.
@@ -455,7 +474,13 @@ func hashPasswordSetToken(raw string) string {
 
 // Delete soft-deletes a user.
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	// A deleted account has no grants (the IAM store skips it), so open
+	// realtime sockets of that user must be re-checked now, not at token expiry.
+	s.accessRevoked()
+	return nil
 }
 
 // InitiateAvatarUpload starts an avatar upload for the user's own profile picture.

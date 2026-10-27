@@ -107,6 +107,13 @@ type Options struct {
 	// comment in ../environment.go for why the fallback has to live in
 	// this package rather than a caller that only resolves it once.
 	AgentServerImage string
+	// DockerInSandbox allows a docker_enabled sandbox's privileged DinD
+	// sidecar. False makes CreateEnvironment/Start refuse such a sandbox
+	// with an actionable error instead of submitting a Pod that Pod
+	// Security Admission forbids (a namespace enforcing Baseline rejects a
+	// privileged container outright) — see SandboxDockerInSandbox in
+	// config.Settings.
+	DockerInSandbox bool
 	// EnvironmentsStorageClassName sets StorageClassName on every
 	// PersistentVolumeClaim environment.go's CreateEnvironment provisions
 	// (SANDBOX_ENVIRONMENTS_STORAGE_CLASS). Empty leaves it unset, which
@@ -140,6 +147,7 @@ type Manager struct {
 	// process-wide setting the way cpuLimit/memoryLimit above are.
 	agentServerImage             string
 	environmentsStorageClassName string
+	dockerInSandbox              bool
 }
 
 var _ sandbox.Backend = (*Manager)(nil)
@@ -205,6 +213,7 @@ func NewManager(opts Options) (*Manager, error) {
 		imagePullSecrets:             pullSecrets,
 		agentServerImage:             opts.AgentServerImage,
 		environmentsStorageClassName: opts.EnvironmentsStorageClassName,
+		dockerInSandbox:              opts.DockerInSandbox,
 	}, nil
 }
 
@@ -277,6 +286,10 @@ func (m *Manager) Start(ctx context.Context, cfg sandbox.Config) (*sandbox.Handl
 		return nil, errors.New("sandbox/k8s: MCPDevSourceDir is not supported by the kubernetes backend — " +
 			"it bind-mounts a path from the host running agent-runner, which has no equivalent across a " +
 			"multi-node cluster; use the docker backend for local apps/mcp development instead")
+	}
+
+	if err := m.requireDockerInSandboxAllowed(cfg.DockerEnabled); err != nil {
+		return nil, err
 	}
 
 	secretKey, err := sandbox.RandomHex(32)

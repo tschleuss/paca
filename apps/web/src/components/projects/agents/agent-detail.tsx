@@ -7,6 +7,7 @@ import {
 	CircleCheck,
 	Code2,
 	ExternalLink,
+	GitBranch,
 	KeyRound,
 	Loader2,
 	Plus,
@@ -88,9 +89,13 @@ import {
 } from "@/lib/agent-api";
 import { invalidateAgentDirectory } from "@/lib/agent-directory";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
-import { environmentQueryOptions } from "@/lib/environment-api";
+import {
+	environmentConfigQueryOptions,
+	environmentQueryOptions,
+} from "@/lib/environment-api";
 import { agentAvatar } from "@/lib/provider-logos";
 import { splitShellCommand } from "@/lib/shell-command";
+import { AgentGitTab } from "./AgentGitTab";
 import { AcpBridgeSetup } from "./acp-bridge-setup";
 import { AgentActivityTab } from "./agent-activity-tab";
 import { AgentGlobalRoleTab } from "./agent-global-role-tab";
@@ -114,6 +119,7 @@ type Tab =
 	| "skills"
 	| "env-vars"
 	| "global-role"
+	| "git"
 	| "activity";
 
 const CUSTOM = "__custom__";
@@ -173,6 +179,10 @@ function OverviewTab({
 		agent.git_committer_email,
 	);
 	const [dockerEnabled, setDockerEnabled] = useState(agent.docker_enabled);
+	// Older APIs predate docker_in_sandbox and always allowed it, so only an
+	// explicit false hides the toggle.
+	const { data: deploymentConfig } = useQuery(environmentConfigQueryOptions());
+	const dockerInSandbox = deploymentConfig?.docker_in_sandbox !== false;
 	const [parallelismLimit, setParallelismLimit] = useState(
 		agent.parallelism_limit,
 	);
@@ -554,6 +564,9 @@ function OverviewTab({
 								<SelectItem value="goose">
 									{t("agents.detail.overview.acpProviderGoose")}
 								</SelectItem>
+								<SelectItem value="opencode">
+									{t("agents.detail.overview.acpProviderOpenCode")}
+								</SelectItem>
 								<SelectSeparator />
 								<SelectItem value="custom">
 									{t("agents.detail.overview.acpProviderCustom")}
@@ -808,7 +821,10 @@ function OverviewTab({
 							    sandbox — once a static default environment is picked, that
 							    environment's own Docker setting (set at creation) governs
 							    instead, so this toggle no longer means anything. */}
-							{!defaultEnvironmentId && (
+							{/* Shown when the deployment allows docker, or when this
+							    agent already has it on — an existing docker-enabled agent
+							    must keep a way to switch it off. */}
+							{!defaultEnvironmentId && (dockerInSandbox || dockerEnabled) && (
 								<div className="flex items-center justify-between gap-3">
 									<div>
 										<p className="text-sm font-medium">
@@ -1890,6 +1906,7 @@ const TABS = [
 		labelKey: "agents.detail.tabs.globalRole",
 		icon: ShieldCheck,
 	},
+	{ id: "git", labelKey: "agents.detail.tabs.git", icon: GitBranch },
 	{
 		id: "activity",
 		labelKey: "agents.detail.tabs.activity",
@@ -1984,6 +2001,8 @@ export function AgentDetailView({
 			return false;
 		}
 		if (tab.id === "global-role" && projectId) return false;
+		// An agent's Git identity is managed through its project's endpoints.
+		if (tab.id === "git" && !projectId) return false;
 		if (agent?.agent_type === "acp" && acpHiddenTabs.includes(tab.id)) {
 			return false;
 		}
@@ -2150,6 +2169,13 @@ export function AgentDetailView({
 				)}
 				{activeTab === "global-role" && !projectId && (
 					<AgentGlobalRoleTab agent={agent} canWrite={canWrite} />
+				)}
+				{activeTab === "git" && projectId && (
+					<AgentGitTab
+						projectId={projectId}
+						agentId={agentId}
+						canWrite={canWrite}
+					/>
 				)}
 				{activeTab === "activity" && projectId && (
 					<AgentActivityTab projectId={projectId} agentId={agentId} />

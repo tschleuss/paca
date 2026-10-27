@@ -65,6 +65,9 @@ export interface Task {
 	tags?: string[];
 	view_position?: number | null;
 	view_group_key?: string | null;
+	/** Direct-child aggregates, present on list responses (absent = none). */
+	subtask_count?: number;
+	subtask_done_count?: number;
 	created_at: string;
 	updated_at: string;
 	// "manual" (default) or "auto" — see the assignees PropertyField in
@@ -204,6 +207,8 @@ export interface ViewConfig {
 	slice_by?: string;
 	filters?: ViewFilters;
 	collapsed_columns?: string[];
+	/** Table / Timeline: how subtasks are shown. Unset means "collapsed". */
+	subtask_mode?: "collapsed" | "expanded" | "hidden";
 	/** Saved number of tasks to fetch when paginating further ("load more") within this view. Unset falls back to a fixed default. */
 	page_size?: number;
 	/** Saved number of tasks to fetch on the first load of this view, independent of page_size. Unset falls back to the layout's default. */
@@ -563,6 +568,9 @@ export interface ListTasksOptions {
 	taskTypeIds?: string[];
 	taskTypeNull?: boolean;
 	parentTaskId?: string;
+	/** Omit tasks whose parent is a non-Epic task — they are listed nested
+	 *  under that parent instead. */
+	excludeSubtasks?: boolean;
 	pageSize?: number;
 	cursor?: string;
 	/** When set to a field key (e.g. "story_points" or a custom field key), the API returns
@@ -644,6 +652,7 @@ function buildTaskQueryParams(opts: ListTasksOptions = {}) {
 	else if (opts.taskTypeIds && opts.taskTypeIds.length > 0)
 		params.task_type_ids = opts.taskTypeIds.join(",");
 	if (opts.parentTaskId) params.parent_task_id = opts.parentTaskId;
+	if (opts.excludeSubtasks) params.exclude_subtasks = true;
 	if (opts.sumField && opts.sumField !== "count")
 		params.sum_field = opts.sumField;
 	// For non-manual sorts, pass sort_by to the backend so the database applies the
@@ -865,6 +874,60 @@ export const subtasksInfiniteQueryOptions = (
 		queryKey: ["projects", projectId, "tasks", parentTaskId, "subtasks"],
 		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
 			listSubtasks(projectId, parentTaskId, { cursor: pageParam }),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+		staleTime: 15_000,
+	});
+
+/** Filters that carry over from a view to the children listed under a parent
+ *  row: everything except what scopes the top level (sprint, task type) or
+ *  only makes sense for it (positions, sums, paging). */
+export type ChildTaskFilters = Omit<
+	ListTasksOptions,
+	| "parentTaskId"
+	| "excludeSubtasks"
+	| "pageSize"
+	| "cursor"
+	| "sumField"
+	| "viewId"
+	| "sprintId"
+	| "sprintIds"
+	| "taskTypeIds"
+	| "taskTypeNull"
+>;
+
+/** Infinite query of one parent's direct children for the nested list rows.
+ *  Unlike the detail panel's subtasks query, it applies the view's filters
+ *  and sort. Keyed under ["projects", id, "tasks"] so task mutations and
+ *  realtime events refetch it. */
+export const childTasksInfiniteQueryOptions = (
+	projectId: string,
+	parentTaskId: string,
+	filters: ChildTaskFilters = {},
+) =>
+	infiniteQueryOptions({
+		queryKey: [
+			"projects",
+			projectId,
+			"tasks",
+			parentTaskId,
+			"children",
+			filters,
+		],
+		queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+			const { data } = await apiClient.instance.get<
+				SuccessEnvelope<TaskListResult>
+			>(`/projects/${projectId}/tasks`, {
+				params: buildTaskQueryParams({
+					...filters,
+					parentTaskId,
+					cursor: pageParam,
+					pageSize: SUBTASKS_PAGE_SIZE,
+				}),
+			});
+			seedTaskPeople(data.data.items);
+			return data.data;
+		},
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
 		staleTime: 15_000,

@@ -707,6 +707,38 @@ func TestDelete_Success(t *testing.T) {
 	}
 }
 
+// countingGrants counts policy-cache invalidations, which a deletion passes
+// no role ids for.
+type countingGrants struct{ calls int }
+
+func (c *countingGrants) Invalidate(...string) { c.calls++ }
+
+// A deleted user has no grants, so their open realtime sockets must be
+// re-checked now: the deletion is announced, and only when it succeeded.
+func TestDelete_AnnouncesLostAccess(t *testing.T) {
+	grants := &countingGrants{}
+	svc := usersvc.New(&stubRepo{
+		delete: func(_ context.Context, _ uuid.UUID) error { return nil },
+	}).WithGrantsNotifier(grants)
+	if err := svc.Delete(context.Background(), uuid.New()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if grants.calls != 1 {
+		t.Fatalf("announced %d times, want 1", grants.calls)
+	}
+
+	failing := &countingGrants{}
+	svc = usersvc.New(&stubRepo{
+		delete: func(_ context.Context, _ uuid.UUID) error { return errors.New("boom") },
+	}).WithGrantsNotifier(failing)
+	if err := svc.Delete(context.Background(), uuid.New()); err == nil {
+		t.Fatal("expected the repo error")
+	}
+	if failing.calls != 0 {
+		t.Fatalf("a failed delete announced %d times", failing.calls)
+	}
+}
+
 func TestDelete_RepoError(t *testing.T) {
 	repoErr := errors.New("delete failed")
 	svc := usersvc.New(&stubRepo{

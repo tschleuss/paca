@@ -5,6 +5,7 @@ import {
 	GripVertical,
 	Layers,
 	Link,
+	ListChecks,
 	Loader2,
 	Search,
 	User,
@@ -719,9 +720,25 @@ export function TaskCard({
 				{task.title}
 			</span>
 
-			{fieldChips.length > 0 && (
+			{(fieldChips.length > 0 || (task.subtask_count ?? 0) > 0) && (
 				<div className="mt-2 flex flex-wrap items-center gap-1.5">
 					{fieldChips}
+					{(task.subtask_count ?? 0) > 0 && (
+						<span
+							title={t("board.subtasks.progress", {
+								done: task.subtask_done_count ?? 0,
+								n: task.subtask_count,
+							})}
+							className={cn(
+								"inline-flex items-center gap-1 rounded-md bg-muted/50 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground",
+								task.subtask_done_count === task.subtask_count &&
+									"text-emerald-600",
+							)}
+						>
+							<ListChecks className="size-3" aria-hidden />
+							{task.subtask_done_count ?? 0}/{task.subtask_count}
+						</span>
+					)}
 				</div>
 			)}
 

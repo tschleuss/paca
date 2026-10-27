@@ -9,6 +9,9 @@ function createMockSocket() {
 		emit: vi.fn(),
 		on: vi.fn(),
 		off: vi.fn(),
+		// socket.timeout(ms) returns an emitter whose ack callback takes
+		// (err, response); the mock hands the emit through unchanged.
+		timeout: vi.fn(),
 	};
 }
 
@@ -24,21 +27,44 @@ vi.mock("socket.io-client", () => ({
 	io: mockSocketFactory,
 }));
 
+const { refreshSession } = vi.hoisted(() => ({ refreshSession: vi.fn() }));
+vi.mock("./api-client", () => ({ apiClient: { refreshSession } }));
+
 // Import after mocking so the module-level `io` call uses our mock.
 import {
 	connectSocket,
 	disconnectSocket,
+	getProjectNamespaces,
 	getSocket,
 	joinProject,
 	leaveProject,
+	onProjectNamespaces,
 	rejoinProject,
 } from "./socket-client";
+
+type Ack = (err: Error | null, res?: unknown) => void;
+
+/** The handler the module registered for a server message. */
+function handlerFor(event: string) {
+	const call = mockSocket.on.mock.calls.find(([name]) => name === event);
+	if (!call) throw new Error(`no ${event} handler registered`);
+	return call[1] as (...args: unknown[]) => void;
+}
+
+/** The ack callback of the most recent join emit. */
+function lastJoinAck(): Ack {
+	const calls = mockSocket.emit.mock.calls.filter(([name]) => name === "join");
+	const last = calls[calls.length - 1];
+	if (!last) throw new Error("no join emitted");
+	return last[2] as Ack;
+}
 
 describe("socket-client", () => {
 	beforeEach(() => {
 		// Reset mock state before each test.
 		vi.clearAllMocks();
 		mockSocket.connected = false;
+		mockSocket.timeout.mockReturnValue({ emit: mockSocket.emit });
 		// Ensure internal singleton is cleared between tests.
 		disconnectSocket();
 	});
@@ -111,9 +137,11 @@ describe("socket-client", () => {
 			connectSocket();
 			joinProject("proj-123");
 
-			expect(mockSocket.emit).toHaveBeenCalledWith("join", {
-				projectId: "proj-123",
-			});
+			expect(mockSocket.emit).toHaveBeenCalledWith(
+				"join",
+				{ projectId: "proj-123" },
+				expect.any(Function),
+			);
 		});
 
 		it("is a no-op when no socket is connected", () => {
@@ -187,9 +215,11 @@ describe("socket-client", () => {
 			// project — this must not require a second leaveProject call to
 			// actually release the room.
 			rejoinProject("proj-123");
-			expect(mockSocket.emit).toHaveBeenCalledWith("join", {
-				projectId: "proj-123",
-			});
+			expect(mockSocket.emit).toHaveBeenCalledWith(
+				"join",
+				{ projectId: "proj-123" },
+				expect.any(Function),
+			);
 
 			mockSocket.emit.mockClear();
 			leaveProject("proj-123");
@@ -201,6 +231,179 @@ describe("socket-client", () => {
 		it("is a no-op when no socket is connected", () => {
 			rejoinProject("proj-123");
 			expect(mockSocket.emit).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("join acknowledgement", () => {
+		it("records the namespaces the server granted and tells listeners", () => {
+			connectSocket();
+			const changes: unknown[] = [];
+			const off = onProjectNamespaces((c) => changes.push(c));
+
+			joinProject("proj-1");
+			expect(getProjectNamespaces("proj-1")).toBeUndefined();
+			lastJoinAck()(null, {
+				projectId: "proj-1",
+				namespaces: ["tasks", "docs"],
+			});
+
+			expect(getProjectNamespaces("proj-1")).toEqual(["tasks", "docs"]);
+			expect(changes).toEqual([
+				{
+					projectId: "proj-1",
+					namespaces: ["tasks", "docs"],
+					removed: [],
+					added: [],
+				},
+			]);
+			off();
+		});
+
+		it("treats a non-member ack as no namespaces rather than a failure", () => {
+			connectSocket();
+			joinProject("proj-1");
+			lastJoinAck()(null, { projectId: "proj-1", namespaces: [] });
+			expect(getProjectNamespaces("proj-1")).toEqual([]);
+		});
+
+		it("ignores an ack that arrives after the last subscriber left", () => {
+			connectSocket();
+			joinProject("proj-1");
+			const ack = lastJoinAck();
+			leaveProject("proj-1");
+			ack(null, { projectId: "proj-1", namespaces: ["tasks"] });
+			expect(getProjectNamespaces("proj-1")).toBeUndefined();
+		});
+
+		describe("a join the server never acks", () => {
+			beforeEach(() => vi.useFakeTimers());
+			afterEach(() => vi.useRealTimers());
+
+			it("is retried, a bounded number of times", () => {
+				connectSocket();
+				mockSocket.connected = true;
+				joinProject("proj-1");
+				const joins = () =>
+					mockSocket.emit.mock.calls.filter(([n]) => n === "join").length;
+				expect(joins()).toBe(1);
+
+				lastJoinAck()(new Error("operation has timed out"));
+				vi.advanceTimersByTime(5_000);
+				expect(joins()).toBe(2);
+
+				lastJoinAck()(new Error("operation has timed out"));
+				vi.advanceTimersByTime(5_000);
+				expect(joins()).toBe(3);
+
+				lastJoinAck()(new Error("operation has timed out"));
+				vi.advanceTimersByTime(60_000);
+				expect(joins()).toBe(3);
+			});
+
+			it("is not retried once the subscriber has left", () => {
+				connectSocket();
+				mockSocket.connected = true;
+				joinProject("proj-1");
+				lastJoinAck()(new Error("operation has timed out"));
+				leaveProject("proj-1");
+				vi.advanceTimersByTime(60_000);
+				expect(
+					mockSocket.emit.mock.calls.filter(([n]) => n === "join").length,
+				).toBe(1);
+			});
+		});
+	});
+
+	describe("permissions:changed", () => {
+		it("reports the namespaces the socket lost", () => {
+			connectSocket();
+			const changes: Array<{ removed: string[]; added: string[] }> = [];
+			const off = onProjectNamespaces((c) => changes.push(c));
+			joinProject("proj-1");
+			lastJoinAck()(null, {
+				projectId: "proj-1",
+				namespaces: ["tasks", "docs"],
+			});
+
+			handlerFor("permissions:changed")({
+				projectId: "proj-1",
+				namespaces: ["tasks"],
+			});
+
+			expect(getProjectNamespaces("proj-1")).toEqual(["tasks"]);
+			expect(changes.at(-1)?.removed).toEqual(["docs"]);
+			off();
+		});
+
+		it("reports the namespaces the socket gained, but not on the first report", () => {
+			connectSocket();
+			const changes: Array<{ removed: string[]; added: string[] }> = [];
+			const off = onProjectNamespaces((c) => changes.push(c));
+			joinProject("proj-1");
+			lastJoinAck()(null, { projectId: "proj-1", namespaces: ["tasks"] });
+			// The first report is the initial load: nothing to refetch.
+			expect(changes.at(-1)?.added).toEqual([]);
+
+			handlerFor("permissions:changed")({
+				projectId: "proj-1",
+				namespaces: ["tasks", "docs"],
+			});
+			expect(changes.at(-1)?.added).toEqual(["docs"]);
+			expect(changes.at(-1)?.removed).toEqual([]);
+
+			// Losing and regaining: the regain is reported as gained.
+			handlerFor("permissions:changed")({
+				projectId: "proj-1",
+				namespaces: ["docs"],
+			});
+			handlerFor("permissions:changed")({
+				projectId: "proj-1",
+				namespaces: ["docs", "tasks"],
+			});
+			expect(changes.at(-1)?.added).toEqual(["tasks"]);
+			off();
+		});
+
+		it("stops notifying an unsubscribed listener", () => {
+			connectSocket();
+			const listener = vi.fn();
+			onProjectNamespaces(listener)();
+			joinProject("proj-1");
+			lastJoinAck()(null, { projectId: "proj-1", namespaces: ["tasks"] });
+			expect(listener).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("reauth", () => {
+		it("refreshes the session, then reconnects so the handshake carries the new cookie", async () => {
+			connectSocket();
+			mockSocket.connected = true;
+			mockSocket.disconnect.mockReturnValue(mockSocket);
+			let done: (() => void) | undefined;
+			refreshSession.mockReturnValue(
+				new Promise<void>((resolve) => {
+					done = resolve;
+				}),
+			);
+
+			handlerFor("reauth")();
+			expect(mockSocket.disconnect).not.toHaveBeenCalled(); // not before the refresh
+			done?.();
+			await vi.waitFor(() => expect(mockSocket.connect).toHaveBeenCalled());
+			expect(mockSocket.disconnect).toHaveBeenCalledTimes(1);
+		});
+
+		it("leaves the socket alone when the refresh fails (the session is over)", async () => {
+			connectSocket();
+			mockSocket.connected = true;
+			refreshSession.mockRejectedValue(new Error("expired"));
+
+			handlerFor("reauth")();
+			await Promise.resolve();
+			await Promise.resolve();
+
+			expect(mockSocket.disconnect).not.toHaveBeenCalled();
+			expect(mockSocket.connect).not.toHaveBeenCalled();
 		});
 	});
 });

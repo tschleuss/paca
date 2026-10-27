@@ -66,7 +66,7 @@ Table agents {
   llm_base_url varchar [null, note: 'Optional custom base URL (e.g. Azure or a local LLM)']
 
   // ACP configuration — set only for agent_type = acp
-  acp_provider varchar [null, note: 'claude-code | codex | gemini-cli | goose | custom. Required when agent_type = acp.']
+  acp_provider varchar [null, note: 'claude-code | codex | gemini-cli | goose | opencode | custom. Required when agent_type = acp.']
   acp_command jsonb [not null, default: '[]', note: 'Launch command + args; only meaningful when acp_provider = custom']
   acp_bridge_token_hash varchar [null, note: 'SHA-256 digest of the current local-bridge auth token. Plaintext shown once, never persisted. No global-scope bridge-token endpoint exists yet — see Known Gaps.']
 

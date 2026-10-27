@@ -206,9 +206,12 @@ func (s *Service) publishStatusChanged(ctx context.Context, projectID, environme
 	if errMsg != nil {
 		payload["error_message"] = *errMsg
 	}
-	_ = s.publisher.Publish(ctx, events.ChannelRealtime, map[string]any{
-		"type":    events.TopicEnvironmentStatusChanged,
-		"payload": payload,
+	events.PublishRealtime(ctx, s.publisher, events.Event{
+		Topic:      events.TopicEnvironmentStatusChanged,
+		Payload:    payload,
+		ProjectID:  projectID,
+		EntityType: events.EntityEnvironment,
+		EntityID:   &environmentID,
 	})
 }
 

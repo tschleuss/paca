@@ -494,7 +494,7 @@ Table agents {
   llm_model varchar [not null, note: 'LiteLLM model name, e.g. claude-sonnet-4-6. Empty string for agent_type = acp.']
   llm_api_key_secret varchar [not null, note: 'Encrypted at rest; never returned by the API. Empty string for agent_type = acp.']
   llm_base_url varchar [null]
-  acp_provider varchar [null, note: 'claude-code | codex | gemini-cli | goose | custom. Required when agent_type = acp (ck_agents_acp_requires_provider).']
+  acp_provider varchar [null, note: 'claude-code | codex | gemini-cli | goose | opencode | custom. Required when agent_type = acp (ck_agents_acp_requires_provider).']
   acp_command jsonb [not null, default: '[]', note: 'JSON array of the launch command + args. Only meaningful when acp_provider = custom.']
   acp_bridge_token_hash varchar [null, note: 'SHA-256 hex digest of the current local-bridge auth token. The plaintext is shown once, never persisted.']
   system_prompt text [not null, default: '']

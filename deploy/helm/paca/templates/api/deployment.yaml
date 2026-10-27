@@ -31,6 +31,10 @@ spec:
               value: "production"
             - name: PORT
               value: "8080"
+            # Same value agent-runner reads: this service only echoes it on
+            # GET /environments/config so the UI can hide the docker toggles.
+            - name: SANDBOX_DOCKER_IN_SANDBOX
+              value: {{ .Values.agentRunner.sandbox.dockerInSandbox | quote }}
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

@@ -33,6 +33,8 @@ export interface HostPluginApiClient {
 	pluginDelete(pluginId: string, path: string): Promise<void>;
 }
 
+import { apiClient } from "@/lib/api-client";
+
 const API_BASE_URL = `${window.location.origin}/api/v1`;
 
 function pluginUrl(pluginId: string, path: string): string {
@@ -69,7 +71,20 @@ async function request<T>(
 		init.body = JSON.stringify(body);
 	}
 
-	const res = await fetch(url, init);
+	let res = await fetch(url, init);
+	if (res.status === 401) {
+		// The short-lived access-token cookie may have lapsed (a tab left open,
+		// or a detour through an external site). Renew it from the refresh
+		// cookie — the same renewal the host's own API client does on a 401 —
+		// and retry once. Retrying is safe even for a POST: a 401 means the
+		// request was refused before the plugin handled it.
+		try {
+			await apiClient.refreshSession();
+			res = await fetch(url, init);
+		} catch {
+			// Refresh failed: fall through and report the original 401.
+		}
+	}
 	if (!res.ok) {
 		const text = await res.text().catch(() => res.statusText);
 		throw new Error(

@@ -2,7 +2,12 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 
-import type { Sprint, Task, ViewConfig } from "@/lib/interaction-api";
+import type {
+	ChildTaskFilters,
+	Sprint,
+	Task,
+	ViewConfig,
+} from "@/lib/interaction-api";
 import type {
 	CustomFieldDefinition,
 	ProjectMember,
@@ -12,6 +17,10 @@ import type {
 
 import { ListGroup } from "./list-group";
 import type { SprintFormPayload } from "./sprint-form-modal";
+import {
+	resolveSubtaskMode,
+	useSubtaskExpansion,
+} from "./use-subtask-expansion";
 import {
 	applyStatusFilterToColumnDefs,
 	type ColumnGroupDef,
@@ -68,6 +77,12 @@ export interface ListViewProps {
 	/** Opens the delete-confirmation dialog — Mod+Backspace shortcut. */
 	onDeleteTask?: (taskId: string) => void;
 	onCollapseChange?: (collapsedColumns: string[]) => void;
+	/** The view's filters/sort, applied to subtasks listed under a parent. */
+	childFilters?: ChildTaskFilters;
+	/** True while any filter or search narrows the list. */
+	filtersActive?: boolean;
+	/** Identifies the view for remembering which rows are expanded. */
+	viewKey?: string;
 	columnPagination?: Record<
 		string,
 		{
@@ -109,9 +124,37 @@ export function ListView({
 	onCreateSprint,
 	onDeleteTask,
 	onCollapseChange,
+	childFilters,
+	filtersActive = false,
+	viewKey = "default",
 	columnPagination,
 }: ListViewProps) {
 	const { t } = useTranslation("projects");
+	const subtaskMode = resolveSubtaskMode(viewConfig);
+	const subtaskExpansion = useSubtaskExpansion(
+		projectId,
+		viewKey,
+		subtaskMode === "expanded",
+	);
+	const nestingEnabled = subtaskMode !== "hidden";
+	const nesting = useMemo(
+		() =>
+			nestingEnabled
+				? {
+						isExpanded: subtaskExpansion.isExpanded,
+						onToggle: subtaskExpansion.toggle,
+						filters: childFilters ?? {},
+						filtersActive,
+					}
+				: undefined,
+		[
+			nestingEnabled,
+			subtaskExpansion.isExpanded,
+			subtaskExpansion.toggle,
+			childFilters,
+			filtersActive,
+		],
+	);
 	const columnBy = viewConfig?.column_by ?? "status";
 	const swimlaneBy = viewConfig?.swimlanes;
 	const fieldSum = viewConfig?.field_sum;
@@ -279,6 +322,7 @@ export function ListView({
 										handleGroupCollapseChange(grp.key, isCollapsed)
 								: undefined
 						}
+						nesting={nesting}
 						groupPagination={columnPagination?.[grp.key]}
 						totalCount={columnPagination?.[grp.key]?.totalCount}
 						apiFieldSum={columnPagination?.[grp.key]?.fieldSum}

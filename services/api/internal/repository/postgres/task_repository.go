@@ -531,6 +531,16 @@ func applyTaskFilter(b *queryBuilder, filter taskdom.TaskFilter) {
 		b.addInClause("task_type_id", uuidSliceToStrSlice(filter.TaskTypeIDs))
 	}
 
+	if filter.ExcludeSubtasks {
+		b.whereClauses = append(b.whereClauses, `NOT EXISTS (
+			SELECT 1 FROM tasks sp
+			WHERE sp.id = tasks.parent_task_id AND sp.project_id = tasks.project_id AND sp.deleted_at IS NULL
+			AND sp.sprint_id IS NOT DISTINCT FROM tasks.sprint_id
+			AND (sp.task_type_id IS NULL OR NOT EXISTS (
+				SELECT 1 FROM task_types spt
+				WHERE spt.id = sp.task_type_id AND spt.is_system AND spt.name = 'Epic')))`)
+	}
+
 	if filter.Search != nil {
 		if q := strings.TrimSpace(*filter.Search); q != "" {
 			pattern := "%" + escapeLikePattern(q) + "%"
@@ -1093,6 +1103,9 @@ func (r *TaskRepository) ListTasks(ctx context.Context, projectID uuid.UUID, fil
 		if err := r.attachAssigneeIDs(ctx, tasks); err != nil {
 			return nil, false, err
 		}
+		if err := r.attachSubtaskCounts(ctx, tasks); err != nil {
+			return nil, false, err
+		}
 		return tasks, hasMore, nil
 	}
 
@@ -1115,6 +1128,9 @@ func (r *TaskRepository) ListTasks(ctx context.Context, projectID uuid.UUID, fil
 		tasks = append(tasks, t)
 	}
 	if err := r.attachAssigneeIDs(ctx, tasks); err != nil {
+		return nil, false, err
+	}
+	if err := r.attachSubtaskCounts(ctx, tasks); err != nil {
 		return nil, false, err
 	}
 	return tasks, hasMore, nil
@@ -1717,6 +1733,48 @@ func (r *TaskRepository) attachAssigneeIDs(ctx context.Context, tasks []*taskdom
 			continue
 		}
 		t.AssigneeIDs = append(t.AssigneeIDs, memberID)
+	}
+	return nil
+}
+
+// attachSubtaskCounts batch-loads the direct-child count and the done-child
+// count (children whose status category is "done") for each task. Epics are
+// included: the Timeline lists Epics and nests their children under them.
+func (r *TaskRepository) attachSubtaskCounts(ctx context.Context, tasks []*taskdom.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+	byID := make(map[string]*taskdom.Task, len(tasks))
+	placeholders := make([]string, len(tasks))
+	args := make([]interface{}, len(tasks))
+	for i, t := range tasks {
+		id := t.ID.String()
+		byID[id] = t
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	type countRow struct {
+		ParentID string `db:"parent_task_id"`
+		Total    int    `db:"total"`
+		Done     int    `db:"done"`
+	}
+	var rows []countRow
+	query := `SELECT c.parent_task_id AS parent_task_id, COUNT(*) AS total,
+		COUNT(*) FILTER (WHERE s.category = 'done') AS done
+		FROM tasks c
+		JOIN tasks p ON p.id = c.parent_task_id AND p.project_id = c.project_id
+		LEFT JOIN task_statuses s ON s.id = c.status_id
+		WHERE c.deleted_at IS NULL AND c.parent_task_id IN (` + strings.Join(placeholders, ",") + `)
+		GROUP BY c.parent_task_id`
+	if err := r.db.SelectContext(ctx, &rows, query, args...); err != nil {
+		return fmt.Errorf("task repo: attach subtask counts: %w", err)
+	}
+	for _, row := range rows {
+		if t, ok := byID[row.ParentID]; ok {
+			t.SubtaskCount = row.Total
+			t.SubtaskDoneCount = row.Done
+		}
 	}
 	return nil
 }

@@ -325,8 +325,8 @@ The MCP server provides **81 tools** across **16 categories** for comprehensive 
 - `update_view` - Update an existing view
 - `delete_view` - Delete a view
 - `list_task_positions` - List task positions in a view
-- `bulk_move_tasks` - Bulk move tasks in a view
-- `move_task` - Move a task within a view
+- `bulk_move_tasks` - Set several tasks' positions within a view
+- `move_task` - Set a task's position within a view
 
 ### 🔧 Custom Fields (5 tools)
 - `list_custom_fields` - List all custom field definitions
@@ -350,14 +350,27 @@ The MCP server provides **81 tools** across **16 categories** for comprehensive 
 - `list_doc_snapshots` - List all snapshots of a document
 - `get_doc_snapshot` - Get a specific document snapshot
 
-### 🔗 GitHub Integration (7 tools)
-- `get_github_integration` - Get GitHub integration status
-- `set_github_token` - Set GitHub token for a project
-- `delete_github_token` - Delete GitHub token
-- `list_github_repositories` - List available GitHub repositories
-- `list_linked_github_repos` - List linked repositories
-- `link_github_repository` - Link a GitHub repository
-- `unlink_github_repository` - Unlink a GitHub repository
+### 🔗 Git (27 tools)
+- `list_repositories` - List the repositories linked to a project
+- `clone_repository` - Clone a linked repository into the workspace
+- `push_branch` - Push a branch of a linked repository
+- `workspace_inspect` - Survey the working directory and the checkouts in it
+- `workspace_prepare` - Prepare (reuse or clone, fetch, branch) a checkout
+- `git_commit` - Commit changes in a checkout
+- `git_push` - Push a branch of a linked repository
+- `change_request_get_context` - Pull/merge request with files, review threads and CI in one call
+- `change_request_get_diff` - Unified diff, whole or per file
+- `review_list_threads` - Review threads with comments and resolved state
+- `issue_get` / `comment_list` - Read an issue and the comments on an issue or pull request
+- `checks_get` / `checks_get_logs` - CI results and the tail of a failing log
+- `repo_get_file` / `repo_search_code` - Read a file or search code without a clone
+- `change_request_open` / `change_request_update` - Open or edit a pull/merge request
+- `comment_post` / `review_reply_thread` / `review_resolve_thread` - Comment and work threads
+- `review_submit` - Review with a verdict and inline comments
+- `labels_add` / `reviewers_request` / `assignees_set` - Metadata
+- `checks_rerun` - Re-run failed CI (capped)
+- `change_request_merge` - Merge (needs `git:merge` and the expected head SHA)
+
 
 ### 💬 Task Activities (4 tools)
 - `list_task_activities` - List activities for a task (newest first, one page per call)
