@@ -2,7 +2,7 @@
 
 The health endpoint returned 200 while Valkey was above its 128 MB `noeviction`
 limit. Full-sample memory inspection attributed approximately 66.4 MB each to
-`paca.activities` and `paca.plugin_events`; both consumer groups reported zero
+`paca.activities` and `paca.plugin_events`; all consumer groups reported zero
 pending/unread entries. API logs contained thousands of scheduler OOM warnings,
 cache-set failures and browser auth-refresh 500 responses. PING alone missed this
 write failure.
@@ -14,7 +14,8 @@ namespace, leaving all event entries and the no-eviction policy intact. Inspecti
 confirms the persisted container command and resource limit. A temporary key with
 a 30-second TTL was successfully written/read; scheduler locks resumed and no new
 OOM warnings appeared after the change. Network isolation and six backup safeguard
-tests passed. The scheduled encrypted local/NAS backup completed at 12:17 UTC
+tests passed. Consumers briefly logged `LOADING` while the existing dataset was
+read during recreation, then recovered. The scheduled encrypted local/NAS backup completed at 12:17 UTC
 before this adjustment; no restore drill was repeated.
 
 Stash access checks independently passed for all four worker/reviewer profiles:
