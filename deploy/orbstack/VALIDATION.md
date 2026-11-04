@@ -1,3 +1,59 @@
+# OrbStack v0.20.0 upgrade validation — 2026-11-04
+
+Upstream release tag `v0.20.0` was merged into the customized fork, preserving
+published history and local backup/egress/gateway/Valkey fixes. All three running
+application images report version 0.20.0 and source revision
+`ba38b7523fe212a4d24d2bb62b9628db4299ee08`. Registry index digests are pinned in
+`images.lock.json`; infrastructure image pins remain unchanged.
+
+Before migration, `paca-20261104T132909Z.tar.age` was encrypted and verified on
+the NAS. Its SHA-256 is
+`ab4acab82373159327df4c3d37f4ba4e84a9a9d9805d8c5d62c9b94a8fcda323`.
+Local checksum verification was repeated before deployment. The whole stack was
+stopped, `paca.py init` installed the updated source, and startup health ordering
+was honored. Runtime upgrade metrics/screenshots are kept privately under
+`diagnostics/upgrade-v0.20.0-20261104/`.
+
+Passed:
+
+- Migrations 73–78 applied. Before disposable test fixtures, row counts and
+  sorted-ID fingerprints match for 5 projects, 980 task records, 26 documents,
+  1 file and 2 users. New MFA enforcement is off and the IP allow-list is empty.
+- Valkey password authentication works and unauthenticated PING is refused.
+  The 512 MB `noeviction` limit and 1 GB container limit remain in place;
+  authenticated temporary-key write/read succeeds. No stream cleanup was applied.
+- Nine controller tests cover the six existing backup safeguards plus atomic,
+  idempotent addition of a new secret, preservation of existing credentials, and
+  retaining the original file on failed replacement. Config validates without
+  exposing secrets. Existing agent keys and the private TLS authority are retained.
+- Outbound IPv4/IPv6 and DNS isolation checks pass. All application services
+  share the guarded network namespace; the keeper retains no capabilities.
+- All four Stash profiles authenticate. Their real MCP probes pass curated tool
+  discovery, project/task/schema/member/document reads, project restrictions,
+  worker status/comment write/read-back and reviewer write refusals. Fourteen
+  direct API handoff checks pass, including worker write confinement and reviewer
+  read-only access. Disposable tasks/docs/folder were removed through the API.
+- The authenticated Stash Timeline renders in a headless browser with no reported
+  page errors. The private CA was verified independently; the disposable browser
+  trusted only the exact leaf public-key pin. Temporary cookie files and the
+  browser session were removed after verification; host trust settings were not
+  modified.
+- API startup is healthy. Release discovery warnings are expected because the
+  existing firewall blocks GitHub access; no API ERROR or Valkey OOM was observed.
+
+The first task-probe fixture used an incorrect status ID and failed safely on its
+disposable task. The corrected probe reads live status IDs and all four profiles
+pass; no production task was modified. Existing pinned clients were retained:
+npm refused 0.20.0 under this machine's release-age restriction, so the release-age
+rule was not bypassed. Stash's working adapter remains `0.19.1-2` and the generic
+client remains 0.19.2. The full upstream test suite, a fresh image vulnerability
+audit and a disaster-recovery drill were not repeated. MFA enrollment, passkey
+enrollment and external Git/LLM integrations were not enabled by this deployment.
+
+The event-stream retention limitation remains. Rollback after migration requires
+restoring the complete pre-upgrade archive with its old configuration/images,
+not starting the old API image against the migrated database.
+
 # OrbStack incident validation — 2026-11-04
 
 The health endpoint returned 200 while Valkey was above its 128 MB `noeviction`

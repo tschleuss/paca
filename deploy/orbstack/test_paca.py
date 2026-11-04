@@ -9,6 +9,40 @@ from unittest.mock import patch
 import paca
 
 
+class CredentialUpgradeTests(unittest.TestCase):
+    def test_upgrade_preserves_credentials_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env = Path(temp) / '.env'
+            original = 'JWT_SECRET=existing\nPOSTGRES_PASSWORD=unchanged'
+            env.write_text(original)
+            paca.ensure_env_secret(env, 'VALKEY_PASSWORD')
+            upgraded = env.read_text()
+            self.assertTrue(upgraded.startswith(original + '\n'))
+            self.assertRegex(upgraded, r'VALKEY_PASSWORD=[0-9a-f]{64}\n$')
+            self.assertEqual(env.stat().st_mode & 0o777, 0o600)
+            paca.ensure_env_secret(env, 'VALKEY_PASSWORD')
+            self.assertEqual(env.read_text(), upgraded)
+
+    def test_upgrade_preserves_an_existing_valkey_password(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env = Path(temp) / '.env'
+            original = 'VALKEY_PASSWORD=already-configured\nJWT_SECRET=existing\n'
+            env.write_text(original)
+            paca.ensure_env_secret(env, 'VALKEY_PASSWORD')
+            self.assertEqual(env.read_text(), original)
+
+    def test_failed_atomic_replacement_leaves_credentials_intact(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env = Path(temp) / '.env'
+            original = 'JWT_SECRET=existing\nVALKEY_PASSWORD=GENERATE\n'
+            env.write_text(original)
+            with patch.object(paca.os, 'replace', side_effect=OSError('unavailable')):
+                with self.assertRaises(OSError):
+                    paca.ensure_env_secret(env, 'VALKEY_PASSWORD')
+            self.assertEqual(env.read_text(), original)
+            self.assertEqual(list(Path(temp).glob('.env-upgrade-*')), [])
+
+
 class BackupTargetTests(unittest.TestCase):
     def test_missing_network_mount_is_rejected(self):
         fake = subprocess.CompletedProcess([], 0, '/dev/disk3s5 on / (apfs, local)\n', '')

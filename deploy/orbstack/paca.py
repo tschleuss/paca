@@ -51,6 +51,29 @@ def private_json(path, value):
     temporary.replace(path)
 
 
+def ensure_env_secret(path, name):
+    """Add a newly required secret without replacing existing credentials."""
+    content = path.read_text()
+    lines = content.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        key, separator, value = line.partition('=')
+        if separator and key.strip() == name:
+            if value.strip() not in ('', 'GENERATE', '""', "''"):
+                return
+            lines[index] = name + '=' + secrets.token_hex(32) + '\n'
+            break
+    else:
+        prefix = '\n' if content and not content.endswith('\n') else ''
+        lines.append(prefix + name + '=' + secrets.token_hex(32) + '\n')
+    descriptor, temporary = tempfile.mkstemp(prefix='.env-upgrade-', dir=path.parent)
+    try:
+        with os.fdopen(descriptor, 'w') as stream:
+            stream.write(''.join(lines))
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
 def sync_runtime_source():
     if SOURCE == BASE:
         return
@@ -151,11 +174,12 @@ def init():
     env = BASE / '.env'
     if not env.exists():
         text = (BASE / '.env.example').read_text()
-        for name in ['POSTGRES_PASSWORD', 'ADMIN_PASSWORD', 'JWT_SECRET', 'ENCRYPTION_KEY',
+        for name in ['POSTGRES_PASSWORD', 'VALKEY_PASSWORD', 'ADMIN_PASSWORD', 'JWT_SECRET', 'ENCRYPTION_KEY',
                      'INTERNAL_API_KEY', 'STORAGE_ACCESS_KEY_ID', 'STORAGE_SECRET_ACCESS_KEY']:
             text = text.replace(name + '=GENERATE', name + '=' + secrets.token_hex(32))
         env.write_text(text)
         env.chmod(0o600)
+    ensure_env_secret(env, 'VALKEY_PASSWORD')
     if not (KEYS / 'instance-id').exists():
         (KEYS / 'instance-id').write_text(str(uuid.uuid4()) + '\n')
     dc('build', 'network-guard')

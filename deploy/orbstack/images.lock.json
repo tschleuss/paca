@@ -1,7 +1,7 @@
 {
-  "reviewed_at": "2026-10-27",
-  "upstream_tag": "v0.19.2",
-  "upstream_commit": "e120af34420c93eab249add14846f2a4eba18f8b",
+  "reviewed_at": "2026-11-04",
+  "upstream_tag": "v0.20.0",
+  "upstream_commit": "ba38b7523fe212a4d24d2bb62b9628db4299ee08",
   "images": {
     "postgres:16-alpine": {
       "digest": "sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
@@ -114,8 +114,8 @@
         }
       ]
     },
-    "pacaai/paca-api:0.19.2": {
-      "digest": "sha256:0012535146762552effd1843657bdffbe13c10164c583d95800d9aeb065ceda3",
+    "pacaai/paca-api:0.20.0": {
+      "digest": "sha256:c3953c2eb18b6cf1932671fa3673f3f178e620f447d0f7df2cfc7c4c367a704f",
       "platforms": [
         {
           "architecture": "amd64",
@@ -127,8 +127,8 @@
         }
       ]
     },
-    "pacaai/paca-web:0.19.2": {
-      "digest": "sha256:b9c6ae286ecc90cda5a48bab668cda7a05820ddecd71d5fdcfc12787a831ecbc",
+    "pacaai/paca-web:0.20.0": {
+      "digest": "sha256:8d87224708c323547cabdfc821485c9afde2ca19e5515274203f512794933f5b",
       "platforms": [
         {
           "architecture": "amd64",
@@ -140,8 +140,8 @@
         }
       ]
     },
-    "pacaai/paca-realtime:0.19.2": {
-      "digest": "sha256:7f38eb04f0e7a60a57bae91f936a06c32243599e7a88892fb12e856b8945c1c2",
+    "pacaai/paca-realtime:0.20.0": {
+      "digest": "sha256:84bc9047a3ca332589e1eb1766e3b40b5450e2725a0e61a473fae6d3ae950f2f",
       "platforms": [
         {
           "architecture": "amd64",

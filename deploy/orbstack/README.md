@@ -1,6 +1,6 @@
 # Paca on OrbStack, with outbound access blocked
 
-This runs Paca on this Mac at **https://localhost:8443**. The NAS holds encrypted backups; it does not run the application. It uses Docker Compose because Paca needs several services. `Dockerfile` builds the small firewall/backup tools image. Application images are pinned to **v0.19.2**; `images.lock.json` records their registry digests and source revision. Infrastructure images retain the prior pins.
+This runs Paca on this Mac at **https://localhost:8443**. The NAS holds encrypted backups; it does not run the application. It uses Docker Compose because Paca needs several services. `Dockerfile` builds the small firewall/backup tools image. Application images are pinned to **v0.20.0**; `images.lock.json` records their registry digests and source revision. Infrastructure images retain the prior pins.
 
 ```sh
 cd /Users/tschleuss/Documents/Repositories/paca/deploy/orbstack
@@ -46,7 +46,7 @@ Only this Mac's loopback port is published. Other LAN computers cannot reach it 
 
 Docker/build tooling on the **Mac** still needs internet access to download/build/update images. Running local agents and browsers are also outside this container firewall. Their AI provider requests are not blocked by it. A compromised host, Docker daemon, kernel/container escape, or an operator attaching another network is outside this protection. Containers can return application data to a client that connects to them; this is outbound-connection control, not a data-loss-prevention system.
 
-The custom tools image initially downloads Alpine packages during build. The v0.19.2 update includes upstream dependency fixes but is not a repeat of the prior vulnerability audit. Network isolation reduces opportunities for outbound access; it does not repair application vulnerabilities. See [the earlier review](https://github.com/tschleuss/paca/blob/synology-lan/deploy/synology/REVIEW.md).
+The custom tools image initially downloads Alpine packages during build. The v0.20.0 update includes upstream fixes but is not a repeat of the prior vulnerability audit. Network isolation reduces opportunities for outbound access; it does not repair application vulnerabilities. See [the earlier review](https://github.com/tschleuss/paca/blob/synology-lan/deploy/synology/REVIEW.md).
 
 ### Domain or port allowlists
 
@@ -69,6 +69,17 @@ diagnosing a partially working instance. These upstream streams have no automati
 retention bound; the larger allowance provides headroom, not a retention policy.
 Any future cleanup must account for every consumer group's pending and unread
 entries and the intended replay/audit history.
+
+Starting with v0.20.0, Valkey requires a private password shared only with API and
+realtime. `paca.py init` adds `VALKEY_PASSWORD` to an existing private `.env`
+atomically, preserving configured passwords and all other credentials. API keys
+and the TLS authority are unchanged. For maintenance, authenticate inside the
+container without putting the password in the host command line:
+
+```sh
+docker --context orbstack exec paca-orbstack-valkey-1 sh -ec \
+  'export REDISCLI_AUTH="$VALKEY_PASSWORD"; valkey-cli INFO memory'
+```
 
 ## Backups
 
@@ -171,9 +182,21 @@ Reinitializations must use a source branch containing the fix; refreshing from
 an older checkout would reinstall the old gateway configuration. Recreate the
 gateway to apply `init`; an ordinary container restart cannot change that option.
 
-Before an update, create/verify a backup, review upstream changes and migration requirements, then update explicit image digests in `compose.yaml` and `images.lock.json` and the matching workstation MCP client in `../synology/agents/`. The Synology evaluation's own Compose and image lock remain a separate historical deployment. Do not use `latest`, Watchtower or the upstream installer on this customized directory. Do not run an old API image against a newly migrated database to roll back: restore the complete pre-update backup instead.
+Before an update, create/verify a backup, review upstream changes and migration requirements, then update explicit image digests in `compose.yaml` and `images.lock.json` and review workstation MCP compatibility. The generic workstation client is in `../synology/agents/`; Stash has its own separately versioned curated adapter. The Synology evaluation's own Compose and image lock remain a separate historical deployment. Do not use `latest`, Watchtower or the upstream installer on this customized directory. Do not run an old API image against a newly migrated database to roll back: restore the complete pre-update backup instead.
 
-The fork's source branch can track upstream `master` ahead of a release. Running OrbStack uses the released image pins, not the source checkout. The v0.19.2 upgrade adds migrations 71 (OpenCode provider constraint) and 72 (subtask lookup index); later Git integration and notification migrations in `master` are not applied by these images.
+Running OrbStack uses the released image pins, not the source checkout. The
+v0.20.0 upgrade applies migrations 73–78: Git integration and repository
+descriptions, question/document notifications, MFA/IP policies and passkeys.
+Existing accounts start with MFA enforcement off and no IP restrictions; no
+passkeys or authenticators are enrolled automatically. `TRUSTED_PROXY_HOPS=1`
+matches the single Caddy gateway in front of the API.
+
+The generic MCP dependency remains pinned at 0.19.2 and Stash's curated adapter
+at `0.19.1-2`; all four Stash worker/reviewer profiles were verified against
+v0.20.0, including disposable task writes and handoff authorization boundaries.
+The machine's npm release-age restriction refused the newly published 0.20.0
+client, so it was not installed by bypassing that restriction. Review and test
+any later client upgrade separately. v0.20.0 still has no stream retention bound.
 
 To install source updates, stop the stack, run `python3 paca.py init` from the repository source directory to refresh installed code/configuration and rebuild tools, then start and verify it. `init` preserves private runtime state.
 

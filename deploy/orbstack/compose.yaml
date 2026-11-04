@@ -66,10 +66,15 @@ services:
     # Fail writes at capacity instead of evicting queue/stream data.
     depends_on:
       network-guard: {condition: service_healthy}
-    command: [valkey-server, --appendonly, "yes", --maxmemory, 512mb, --maxmemory-policy, noeviction]
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD:?Run python3 paca.py init}
+    command:
+      - sh
+      - -ec
+      - exec valkey-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction --requirepass "$$VALKEY_PASSWORD"
     volumes: ["valkey_data:/data"]
     healthcheck:
-      test: [CMD, valkey-cli, ping]
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$VALKEY_PASSWORD" valkey-cli ping | grep -q PONG']
       interval: 10s
       timeout: 5s
       retries: 20
@@ -99,7 +104,7 @@ services:
 
   api:
     <<: *common
-    image: pacaai/paca-api:0.19.2@sha256:0012535146762552effd1843657bdffbe13c10164c583d95800d9aeb065ceda3
+    image: pacaai/paca-api:0.20.0@sha256:c3953c2eb18b6cf1932671fa3673f3f178e620f447d0f7df2cfc7c4c367a704f
     mem_limit: 512m
     cpus: 1.0
     environment:
@@ -107,12 +112,13 @@ services:
       PORT: "8080"
       GOMEMLIMIT: 384MiB
       DATABASE_URL: postgres://paca:${POSTGRES_PASSWORD:?Run python3 paca.py init}@127.0.0.1:5432/paca?sslmode=disable
-      REDIS_URL: redis://127.0.0.1:6379/0
+      REDIS_URL: redis://:${VALKEY_PASSWORD:?Run python3 paca.py init}@127.0.0.1:6379/0
       JWT_SECRET: ${JWT_SECRET:?Run python3 paca.py init}
       JWT_ACCESS_TTL: 15m
       JWT_REFRESH_TTL: 168h
       COOKIE_SECURE: "true"
       AUTH_RATE_LIMIT_PER_MINUTE: "10"
+      TRUSTED_PROXY_HOPS: "1"
       ADMIN_USERNAME: ${ADMIN_USERNAME:-pacaadmin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Run python3 paca.py init}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Run python3 paca.py init}
@@ -150,7 +156,7 @@ services:
 
   web:
     <<: *common
-    image: pacaai/paca-web:0.19.2@sha256:b9c6ae286ecc90cda5a48bab668cda7a05820ddecd71d5fdcfc12787a831ecbc
+    image: pacaai/paca-web:0.20.0@sha256:8d87224708c323547cabdfc821485c9afde2ca19e5515274203f512794933f5b
     mem_limit: 128m
     cpus: 0.5
     read_only: true
@@ -163,7 +169,7 @@ services:
 
   realtime:
     <<: *common
-    image: pacaai/paca-realtime:0.19.2@sha256:7f38eb04f0e7a60a57bae91f936a06c32243599e7a88892fb12e856b8945c1c2
+    image: pacaai/paca-realtime:0.20.0@sha256:84bc9047a3ca332589e1eb1766e3b40b5450e2725a0e61a473fae6d3ae950f2f
     mem_limit: 256m
     cpus: 0.5
     cap_drop: [ALL]
@@ -172,7 +178,7 @@ services:
       PORT: "3001"
       NODE_ENV: production
       API_URL: http://127.0.0.1:8080
-      REDIS_URL: redis://127.0.0.1:6379/0
+      REDIS_URL: redis://:${VALKEY_PASSWORD:?Run python3 paca.py init}@127.0.0.1:6379/0
       CORS_ORIGINS: ${PUBLIC_URL:?Set PUBLIC_URL}
       LOG_LEVEL: info
     depends_on:
