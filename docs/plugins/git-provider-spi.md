@@ -29,16 +29,20 @@ func main() { plugin.Run(&myPlugin{}) }
 
 **Required** (every platform has them): `Describe`, `BeginIdentitySetup`, `CompleteIdentitySetup`, `ListRepositories`, `ResolveRepository`, `VerifyAndParseWebhook`, `MintCredential`, `GetActorPermission`, `GetBranchProtection`, `GetChangeRequest`, `ListChangedFiles`, `GetDiff`, `ListThreads`, `ListComments`, `GetIssue`, `GetChecks`, `GetCheckLogs`, `OpenChangeRequest`, `UpdateChangeRequest`, `Comment`, `ReplyThread`, `SubmitReview`, `SetStatus`.
 
+`ListRepositories` feeds the repository picker in the project's link form. Core calls it with the connection the user chose (`Identity`), the text typed in the search box (`Query`, a case-insensitive substring of the name is enough) and the `Cursor` your last page returned; it asks for 30 items (`PageSize`), and `NextCursor` empty means the last page. Return only what the identity can read, and keep it cheap: it runs on every pause in typing. A platform that cannot list at all may answer `unsupported`: core does not treat that as a failure, the form just goes back to asking for a path or URL.
+
 **Optional** — implement the Go interface *and* set the capability flag, or neither:
 
 | Interface | Capability |
 |---|---|
+| `IssueLister` | `issue_list` |
 | `ThreadResolver` | `resolve_threads` |
 | `FileReader`, `CodeSearcher` | `file_read`, `code_search` |
 | `LabelManager`, `ReviewerRequester`, `AssigneeSetter` | `labels`, `reviewer_requests`, `assignees` |
 | `Merger`, `CheckRerunner`, `Reactor` | `merge`, `rerun_checks`, `reactions` |
 | `WebhookManager` | `webhook_management` (repo/group-scoped webhooks) |
 | `IdentityDeleter` | `identity_deletion` |
+| `IdentityDescriber` (`DescribeIdentity`) | `identity_description` (see below) |
 | `BranchManager` (`GetBranch`, `CreateBranch`) | `branches` |
 | `AccessGranter` | `access_grants` (see below) |
 
@@ -48,7 +52,7 @@ Anything you do not support simply is not implemented; the wire layer answers `u
 
 * **Honest capabilities** — both directions: a flag without an implementation, or an implementation without a flag, fails.
 * **Webhooks**: reject a bad signature with `invalid_signature` and produce no events; normalize to the neutral `Event` (kinds, actions, repo, subject, actor, location, check); report `addressed[]` only for ways of being addressed that you declare in `triggers`; produce **deterministic event ids** (core de-duplicates on them); drop events you cannot map instead of guessing; never put secrets in an event.
-* **Errors** are `*gitprovider.Error` with a code from the closed set (`not_found`, `forbidden`, `invalid_signature`, `conflict`, `rate_limited`, `validation`, `unsupported`, `transient`, `internal`). Map platform failures onto them; never include tokens, secrets or raw payloads in a message. Unclassified errors are rejected.
+* **Errors** are `*gitprovider.Error` with a code from the closed set (`not_found`, `forbidden`, `invalid_signature`, `conflict`, `rate_limited`, `validation`, `unsupported`, `transient`, `internal`). Map platform failures onto them; never include tokens, secrets or raw payloads in a message. Unclassified errors are rejected. The `Message` of a `not_found` or `forbidden` answer from `ResolveRepository` (linking a repository) and of any failed `EnsureWebhook` retry (whatever the code, except `internal`) is shown to the person in the settings page under the generic text (redacted and capped at 500 characters), so make it say what to fix, for example which repository a token covers; core still decides the error code.
 * **Credentials**: `ephemeral` platforms must set `ExpiresAt`; when the request names a lifetime (`ttl_seconds`), `ExpiresAt` must not be later than it (a platform that cannot shorten its tokens reports the requested lifetime, which only makes callers stop using the token sooner); clone URLs must be credential-free.
 * **Reads**: paging must visit each item exactly once; `MaxBytes`/`TailBytes` limits must set `Truncated` (silent truncation hides content); unknown things are `not_found`; repositories the identity cannot see are `not_found` or `forbidden`.
 * **Branches**: a missing branch is `not_found`, a taken name is `conflict`, a missing source is `not_found`, an invalid name is `validation`; a created branch points at the source branch's commit.
@@ -62,6 +66,7 @@ The SDK ships a conformance suite (`plugin-sdk-go/gitprovider/conformance`) and 
 ## 5. Platform specifics you decide
 
 * **Identity kind and setup**: `redirect` / `form_post` (GitHub's manifest flow) / `token_form` (list the inputs in `Form`: platforms with static credentials usually want a read-only and a write token) / `done`. Report `Identity.ExpiresAt` if credentials expire.
+* **Several kinds**: a platform that supports more than one way to connect (GitHub: an App, or a personal access token) lists them in `IdentityKinds` and refines the provider-wide `CredentialModel`, `WebhookScope` and `AccessGrants` per kind in `Capabilities.Kinds` (`Capabilities.Profile(kind)` falls back to the provider-wide values). Core chooses the kind by passing `Params["kind"]` to `BeginIdentitySetup`; absent means the first (default) kind. A kind whose `WebhookScope` is `repo` or `group` is registered per repository by `WebhookManager.EnsureWebhook` (core calls it when a repository is linked and `RemoveWebhook` when the last link goes); `EnsureWebhook` must be idempotent for the same URL, and a provider that cannot register one answers an error (the link still succeeds and the user is told the webhook is missing and can retry); generate the signing secret yourself, as the setup form does not ask for one. `IdentityRef.ID` must be unique per connection (use the provider's own row id, never the platform account: two tokens of the same user are two identities); core never merges two connections that report the same id. Several connections may exist per host, workspace-wide or per project, so `ResolveRepository` receives every candidate the project can use and picks the first that sees the repository.
 * **Credential model**: `ephemeral` (mint per use, down-scoped) or `static` (return the stored secret; core never exposes it to agents and does API calls through you).
 * **Webhook scope**: `app` (nothing to register), or `group`/`repo` (implement `WebhookManager`; users without rights can paste the URL and secret by hand).
 * **Status kind**: check run, commit status, or comment — pick the best your platform offers.
@@ -72,6 +77,16 @@ The SDK ships a conformance suite (`plugin-sdk-go/gitprovider/conformance`) and 
 ## 6. What you do not implement
 
 Trigger configuration, routing, actor policy, run lifecycle, debounce, comment/thread ownership, status comments, audit, MCP tools, workspace protocol, credential-helper plumbing, task linking and every screen except your identity setup component. If you find yourself writing one of those, the SPI is missing something — raise it.
+
+## Identity description (optional)
+
+`DescribeIdentity(ctx, DescribeIdentityRequest{Identity})` says who an existing identity is, without a setup flow. It exists for identities core holds with no handle: a plugin's data migration (for example from an older plugin version or a community plugin) creates `git_identities` rows without calling the platform, so it cannot know the token's user. Such a row would stay nameless in Settings → Git and `@mentions` would not match it.
+
+* **When core calls it**: while listing connections (a project's Settings → Git) or the workspace's shared identities, for each identity whose stored handle is empty and whose provider declares `identity_description`. Once per identity, because the answer is stored; an identity that already has a handle is never described.
+* **What you return**: an `Identity` whose `Ref.ID` equals the request's, with `Ref.Handle` set (the login users `@mention`), `DisplayName`, and `ExpiresAt` for credentials that expire. `Next` is ignored. Unknown identity: `not_found`; credentials the platform no longer accepts: `forbidden`.
+* **What core stores**: the handle, and the display name and expiry when non-empty. An answer with another `Ref.ID` or an empty handle is discarded.
+* **Failure**: best effort. Core bounds all the calls of one listing to 5 s in total (not per call), logs the error without secrets and serves the listing with the old values. After a failure, or an answer it cannot use (another `Ref.ID`, empty handle), core does not ask about that identity again for 15 minutes (in memory, reset on restart), then retries. A request the client cancels is not counted as a failure.
+* **For migrations**: leave `handle` empty (and a generic `display_name`) in the SQL and implement `DescribeIdentity` by calling the platform's "current user" endpoint with the stored credential.
 
 ## Access grants (optional)
 

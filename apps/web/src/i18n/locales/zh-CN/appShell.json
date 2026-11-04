@@ -21,7 +21,6 @@
 		"globalRoles": "全局角色",
 		"users": "用户",
 		"plugins": "插件",
-		"git": "Git",
 		"allProjects": "所有项目",
 		"project": "项目",
 		"agents": "智能体",
@@ -85,7 +84,7 @@
 	},
 	"userMenu": {
 		"signIn": "登录",
-		"myProfile": "个人资料",
+		"myProfile": "账户",
 		"apiKeys": "API 密钥",
 		"logOut": "退出登录",
 		"loggingOut": "正在退出登录…"

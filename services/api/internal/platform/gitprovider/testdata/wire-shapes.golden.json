@@ -122,8 +122,18 @@
       "hidden_markers": "bool",
       "idempotent_writes": "bool",
       "identity_deletion": "bool",
+      "identity_description": "bool",
       "identity_kinds": [
         "string"
+      ],
+      "issue_list": "bool",
+      "kinds": [
+        {
+          "access_grants": "bool",
+          "credential_model": "string",
+          "kind": "string",
+          "webhook_scope": "string"
+        }
       ],
       "labels": "bool",
       "merge": "bool",
@@ -369,6 +379,13 @@
         "provider_ref": "bytes"
       }
     },
+    "DescribeIdentityRequest": {
+      "identity": {
+        "handle": "string",
+        "id": "string",
+        "provider_ref": "bytes"
+      }
+    },
     "Diff": {
       "text": "string",
       "truncated": "bool"
@@ -601,8 +618,18 @@
         "hidden_markers": "bool",
         "idempotent_writes": "bool",
         "identity_deletion": "bool",
+        "identity_description": "bool",
         "identity_kinds": [
           "string"
+        ],
+        "issue_list": "bool",
+        "kinds": [
+          {
+            "access_grants": "bool",
+            "credential_model": "string",
+            "kind": "string",
+            "webhook_scope": "string"
+          }
         ],
         "labels": "bool",
         "merge": "bool",
@@ -653,6 +680,25 @@
       "title": "string",
       "url": "string"
     },
+    "IssuePage": {
+      "items": [
+        {
+          "assignees": [
+            "string"
+          ],
+          "author": "string",
+          "body": "string",
+          "labels": [
+            "string"
+          ],
+          "number": "string",
+          "state": "string",
+          "title": "string",
+          "url": "string"
+        }
+      ],
+      "next_cursor": "string"
+    },
     "IssueRequest": {
       "number": "string",
       "target": {
@@ -701,6 +747,25 @@
         "kind": "string",
         "number": "string"
       },
+      "target": {
+        "identity": {
+          "handle": "string",
+          "id": "string",
+          "provider_ref": "bytes"
+        },
+        "repo": {
+          "clone_url": "string",
+          "default_branch": "string",
+          "external_id": "string",
+          "full_path": "string",
+          "host": "string",
+          "provider_ref": "bytes"
+        }
+      }
+    },
+    "ListIssuesRequest": {
+      "cursor": "string",
+      "state": "string",
       "target": {
         "identity": {
           "handle": "string",

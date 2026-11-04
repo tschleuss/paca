@@ -13,6 +13,12 @@
   <a href="https://artifacthub.io/packages/helm/paca/paca"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/paca" alt="Artifact Hub" /></a>
 </p>
 
+<p align="center">
+  <a href="https://trendshift.io/repositories/51675?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-51675" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/51675/daily?language=Go" alt="Paca-AI%2Fpaca | Trendshift" width="250" height="55"/></a>
+  &nbsp;&nbsp;
+  <a href="https://trendshift.io/repositories/51675?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-51675" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/51675/daily" alt="Paca-AI%2Fpaca | Trendshift" width="250" height="55"/></a>
+</p>
+
 <p align="center"><sub>✨ Sponsored by</sub></p>
 
 <p align="center">
@@ -60,10 +66,21 @@ Everything about Paca — its workflow, its data model, its UI — is **configur
 | **AI integration** | Chatbot add-ons, peripheral automation | AI agents as first-class Scrum teammates |
 | **Collaboration model** | Human-only by default | Human + AI, side by side on the same board |
 | **Hosting** | Vendor cloud (your data, their servers) | Self-hosted, you own everything |
-| **Cost** | $8–$20+ per seat/month | **Free forever** |
+| **Cost** | $8–$20+ per seat/month | **Free forever. Every feature, no paid tiers** |
 | **Customization** | Limited; locked behind enterprise tiers | **Fully open: configuration + plugins** |
 | **Weight** | Bloated feature sprawl | Lightweight core; extend only what you need |
 | **Source** | Closed / proprietary | **100% open-source (Apache 2.0)** |
+
+---
+
+## Our Promise: Free Forever, Owned by the Community
+
+Paca is, and will always be, **free and non-profit**.
+
+- **No paid tiers.** There will never be a "Pro", "Team", or "Enterprise" edition.
+- **No paywalled features.** Every feature — today and in the future — is available to everyone, at no cost.
+- **No open-core bait-and-switch.** We will not move existing features behind a paywall or a license change.
+- **Belongs to the community.** Paca is built by its contributors and for its users. It is not a vendor's product, and its direction is shaped in the open through issues, discussions, and pull requests.
 
 ---
 
@@ -131,6 +148,18 @@ Plan  →  Act  →  Check  →  Adapt
 | **Act** | Sprint is live. Humans and AI agents pull tasks from the board, execute, and post updates. |
 | **Check** | QA agents run automated verification. Humans review AI output. The board reflects reality. |
 | **Adapt** | Data from the sprint informs the next cycle. The team — human and AI — retrospects together. |
+
+---
+
+## What's New in v0.20.0
+
+- **Git integration — agents that work on your pull requests** — connect a Git host and let AI agents work where your code lives. Mention an agent on a pull/merge request or issue, or hand it work, and it replies, pushes commits, reviews, and fixes CI, with every action attributed to a bot identity and bounded by least-privilege credentials. GitHub ships first, and the provider SPI lets a plugin add GitLab, Bitbucket, Gitea or Azure DevOps without touching the core.
+  - **Connections and linked repositories** — add any number of connections per host (a GitHub App, a bot user, or an access token), owned by the workspace or by a single project, then link repositories through them. Paca receives change-request, branch, comment, review and check events for linked repositories and routes them to the project.
+  - **Task references** — change requests and branches are tied to the tasks they mention, so a task shows its code changes alongside its activity.
+  - **Agent identities** — give an agent its own bot name, avatar and handle, or let it act through the connection its repository was linked with.
+  - **Permissions** — Git actions are governed by the same [roles and policies](docs/guides/roles-and-policies.md) as everything else.
+  - **Learn more** — see [Git agent workflow](docs/ai-agent/git-agent-workflow.md) for the full design.
+- **Multi-factor authentication** — require two-step verification for the whole workspace, with account lockout and a login throttle after repeated failed attempts. Admins can also restrict sign-in to IP allow-lists and reset an account's MFA from **Settings → Security**.
 
 ---
 
@@ -480,6 +509,18 @@ But Paca is built from conviction: human-AI collaboration in a real Scrum team s
 | [deploy/README.md](deploy/README.md) | Full deployment reference |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 | [SECURITY.md](SECURITY.md) | Security policy |
+
+---
+
+## Contributors
+
+Thanks to everyone who has helped build Paca. 💛
+
+<a href="https://github.com/Paca-AI/paca/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Paca-AI/paca" alt="Paca contributors" />
+</a>
+
+Want to see your face here? Read [CONTRIBUTING.md](CONTRIBUTING.md) and open a pull request.
 
 ---
 

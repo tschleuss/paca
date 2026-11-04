@@ -74,6 +74,12 @@ const (
 	// ActionSettingsSSOWrite is root-equivalent: a provider that links
 	// accounts by email signs in as any account with a matching email.
 	ActionSettingsSSOWrite Action = "settings.sso:write"
+	// ActionSettingsSecurityWrite is root-equivalent too: it sets the login
+	// policy (MFA requirement, IP allow-lists) and can reset another
+	// account's MFA or allow-list, which removes the protection on it. It
+	// shares the "sso" platform root so no wildcard grant over "settings"
+	// carries it.
+	ActionSettingsSecurityWrite Action = "settings.security:write"
 
 	ActionPluginsRead  Action = "plugins:read"
 	ActionPluginsWrite Action = "plugins:write"
@@ -89,6 +95,11 @@ const (
 	ActionGitApprove Action = "git:approve"
 	// ActionGitMerge gates merging a change request; off in every default role.
 	ActionGitMerge Action = "git:merge"
+
+	// ActionGitConnectionsManage gates creating and deleting the connections
+	// (GitHub Apps, access tokens) that belong to one project. Workspace
+	// connections are governed by ActionGitIdentitiesManage instead.
+	ActionGitConnectionsManage Action = "git.connections:manage"
 
 	// ActionGitIdentitiesManage gates the instance's bot identities on Git
 	// platforms: creating them (which creates an app/bot on the platform),
@@ -113,8 +124,8 @@ func BuiltinActions() []Action {
 		ActionEnvironmentsRead, ActionEnvironmentsWrite, ActionEnvironmentsConnect,
 		ActionWorkflowsRead, ActionWorkflowsWrite,
 		ActionAnnotationsRead, ActionAnnotationsWrite, ActionAnnotationsResolve,
-		ActionSettingsWrite, ActionSettingsSSOWrite, ActionPluginsRead, ActionPluginsWrite,
-		ActionGitRead, ActionGitWrite, ActionGitApprove, ActionGitMerge, ActionGitIdentitiesManage,
+		ActionSettingsWrite, ActionSettingsSSOWrite, ActionSettingsSecurityWrite, ActionPluginsRead, ActionPluginsWrite,
+		ActionGitRead, ActionGitWrite, ActionGitApprove, ActionGitMerge, ActionGitConnectionsManage, ActionGitIdentitiesManage,
 	}
 }
 

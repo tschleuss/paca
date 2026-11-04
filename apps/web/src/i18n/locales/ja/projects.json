@@ -25,12 +25,12 @@
 		},
 		"git": {
 			"title": "Git リポジトリ",
-			"description": "このプロジェクトのエージェントが、ワークスペース共有の Git ID を通じて作業できるリポジトリです。",
+			"description": "このプロジェクトのエージェントが、下の接続を通じて作業できるリポジトリです。",
 			"empty": {
 				"title": "リンク済みのリポジトリはありません",
 				"description": "リポジトリをリンクすると、このプロジェクトのエージェントがコードを読み、プルリクエストを作成し、メンションに応答できます。",
 				"readOnly": "リポジトリをリンクするには、このプロジェクトの Git 書き込み権限が必要です。",
-				"linkNeedsAdmin": "リポジトリのリンクには、Git ID を管理するワークスペース権限も必要です。管理者に依頼してください。"
+				"noConnection": "まず接続を追加し、その接続を通じてリポジトリをリンクしてください。"
 			},
 			"noProviders": "Git プロバイダーがインストールされていません。管理者にインストールを依頼してください。",
 			"link": {
@@ -41,7 +41,24 @@
 				"open": "リポジトリをリンク",
 				"cancel": "キャンセル",
 				"help": "リポジトリの URL を貼り付けるか、owner/name を入力します。",
-				"connectAction": "Git 連携を開く"
+				"noConnection": "リポジトリをリンクする前に、上で {{provider}} の接続を追加してください。",
+				"connection": "接続",
+				"anyConnection": "リポジトリを参照できる任意の接続",
+				"connectionHelp": "複数の接続（たとえば 2 つの組織）がリポジトリを参照できる場合は、1 つ選択してください。",
+				"description": "説明（任意）",
+				"descriptionPlaceholder": "例: プロダクトの Web クライアント",
+				"descriptionHelp": "このリポジトリの用途をエージェントに伝え、適切なリポジトリを選べるようにします。1000 文字まで。"
+			},
+			"picker": {
+				"browse": "リポジトリを参照",
+				"hide": "一覧を隠す",
+				"search": "リポジトリを検索",
+				"unsupported": "この接続ではリポジトリの一覧を取得できません。上にパスまたは URL を入力してください。",
+				"error": "一覧を読み込めませんでした。上にパスまたは URL を入力することもできます。",
+				"empty": "リポジトリが見つかりません。",
+				"loadMore": "さらに読み込む",
+				"linked": "リンク済み",
+				"private": "プライベート"
 			},
 			"unlink": {
 				"button": "リンク解除",
@@ -50,11 +67,13 @@
 			},
 			"resumed": "お帰りなさい。{{repository}} をリンクしてください。",
 			"access": {
-				"title": "共有 ID はこのリポジトリを参照できません",
-				"description": "{{provider}} の ID は、インストールされているアカウントのリポジトリのみ参照できます。{{owner}} にインストールしてください（プラットフォームに移動し、ここに戻ります）。その後、もう一度リンクしてください。",
-				"descriptionNoOwner": "{{provider}} の ID は、インストールされているアカウントのリポジトリのみ参照できます。インストール先を選んでください（プラットフォームに移動し、ここに戻ります）。その後、もう一度リンクしてください。",
+				"title": "この接続はこのリポジトリを参照できません",
+				"description": "{{provider}} のアプリは、インストールされたアカウントのリポジトリしか参照できません。{{owner}} にインストールしてください（プラットフォームに移動し、ここに戻ります）。その後もう一度リンクします。",
+				"descriptionNoOwner": "{{provider}} のアプリは、インストールされたアカウントのリポジトリしか参照できません。インストール先を選んでください（プラットフォームに移動し、ここに戻ります）。その後もう一度リンクします。",
 				"button": "{{owner}} にインストール",
-				"buttonNoOwner": "インストール先を選ぶ"
+				"buttonNoOwner": "インストール先を選ぶ",
+				"connection": "インストールする接続",
+				"choose": "接続を選択"
 			},
 			"errors": {
 				"generic": "問題が発生しました。もう一度お試しください。",
@@ -63,10 +82,14 @@
 				"publicUrlRequired": "インスタンスの公開 URL（PUBLIC_URL）が設定されていません。",
 				"providerUnavailable": "Git プロバイダープラグインを利用できません。",
 				"providerRejected": "プラットフォームがリクエストを拒否しました。",
+				"providerDetail": "プラットフォームからの詳細: {{message}}",
 				"notFound": "見つかりません。",
-				"accessNotGranted": "共有 ID はこのリポジトリを参照できません。",
-				"noIdentity": "このプラットフォーム用の共有 Git ID はまだ設定されていません。ワークスペース管理者が「管理 → Git」で設定します。",
-				"alreadyLinked": "このリポジトリはすでにプロジェクトにリンクされています。"
+				"accessNotGranted": "この接続はこのリポジトリを参照できません。",
+				"noIdentity": "このプラットフォームで使える接続がまだありません。「接続」で追加してください。",
+				"alreadyLinked": "このリポジトリはすでにプロジェクトにリンクされています。",
+				"identityRequired": "複数の接続がこのリポジトリを参照できます。使用する接続を選んでください。",
+				"notVisible": "このプロジェクトのどの接続もこのリポジトリを参照できません。アクセス権のある接続を追加してください（GitLab ではそのプロジェクトまたはグループのトークン）。その後もう一度お試しください。",
+				"descriptionTooLong": "説明が長すぎます（最大 1000 文字）。"
 			},
 			"triggerKinds": {
 				"mention": {
@@ -101,7 +124,13 @@
 			"repositories": {
 				"title": "リポジトリ",
 				"description": "このプロジェクトのエージェントは、これらのリポジトリで作業できます。",
-				"mention": "コメントでメンション:"
+				"mention": "コメントでメンション:",
+				"noDescription": "説明なし",
+				"addDescription": "説明を追加",
+				"editDescription": "説明を編集",
+				"saveDescription": "保存",
+				"cancelDescription": "キャンセル",
+				"descriptionLabel": "リポジトリの説明"
 			},
 			"automation": {
 				"title": "自動化",
@@ -148,6 +177,38 @@
 					"description": "Issue またはプルリクエストに「paca」ラベルを付けます。"
 				},
 				"automatic": "エージェントは、自分のプルリクエストのフォローアップや新規プルリクエストすべてのレビューなど、自動で起動することもできます。各エージェントの Git タブで有効にします。"
+			},
+			"connections": {
+				"title": "接続",
+				"description": "Paca がリポジトリにアクセスするために使う GitHub アプリとアクセストークンです。プロジェクトには異なる組織の接続を複数持てます。各接続は、すべてのプロジェクトで共有するか、このプロジェクトに限定されます。",
+				"add": "{{provider}} を追加",
+				"empty": {
+					"title": "接続はまだありません",
+					"description": "Paca がリポジトリにアクセスできるよう接続を追加してください。アプリを使うか、プラットフォームにアプリがない場合はアクセストークンを貼り付けます。",
+					"noPermission": "Git 接続を管理できる人に追加を依頼してください。"
+				},
+				"scope": {
+					"shared": "すべてのプロジェクト",
+					"project": "このプロジェクト"
+				},
+				"expires": "{{date}} に期限切れ",
+				"expired": "期限切れ",
+				"remove": "削除"
+			},
+			"webhook": {
+				"title": "このリポジトリのイベントが Paca に届いていません",
+				"description": "Paca はこの接続を通じてこのリポジトリに Webhook を登録できませんでした。",
+				"permissionHint": "最も多い原因は、トークンに Webhook を管理する権限がないことです（GitLab は Maintainer ロール、GitHub は Webhooks 権限）。トークンにその権限を付与して（GitLab では Maintainer ロールの新しいトークンを作成し、接続として追加）、再試行してください。",
+				"retry": "再試行",
+				"descriptionNotTried": "Paca はまだこのリポジトリに Webhook を登録していません(たとえば、以前のバージョンのプラグインから引き継がれたリポジトリです)。登録すると、イベントの受信が始まります。",
+				"register": "Webhook を登録",
+				"failed": "Webhook をまだ登録できませんでした。"
+			},
+			"reconnect": {
+				"title": "このリポジトリには接続がありません",
+				"description": "接続が削除されたため、このリポジトリは使えません。リポジトリを参照できる接続で再接続してください。",
+				"noConnection": "接続が削除されました。まずリポジトリを参照できる接続を追加してから、再接続してください。",
+				"button": "再接続"
 			}
 		}
 	},
@@ -1104,6 +1165,10 @@
 			"gitMerge": {
 				"label": "変更リクエストのマージ",
 				"description": "プルリクエストやマージリクエストをターゲットブランチにマージします。プラットフォーム側のブランチ保護は引き続き適用されます。"
+			},
+			"gitConnectionsManage": {
+				"label": "Git 接続を管理",
+				"description": "このプロジェクトだけが使う GitHub アプリとアクセストークンを追加・削除します。リポジトリのリンクには引き続き Git の書き込み権限が必要です。"
 			}
 		},
 		"permissionGroups": {
@@ -2147,6 +2212,7 @@
 			"deleteView": "ビューを削除",
 			"searchTasksPlaceholder": "タスクを検索…",
 			"pluginNotAvailable": "プラグインを利用できません",
+			"columnsTruncated": "最初の{{max}}列のみ表示されています。一部のタスクはどの列にも表示されません。フィルターで絞り込むと残りを確認できます。",
 			"viewErrors": {
 				"isLastView": "最後のビューは削除できません。",
 				"deleteFailed": "ビューの削除に失敗しました。もう一度お試しください。",
@@ -2350,7 +2416,8 @@
 			"assignee": "担当者",
 			"importance": "重要度",
 			"type": "タイプ",
-			"reporter": "報告者"
+			"reporter": "報告者",
+			"tags": "タグ"
 		},
 		"sortBy": {
 			"manual": "手動",

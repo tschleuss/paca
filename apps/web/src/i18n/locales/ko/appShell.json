@@ -21,7 +21,6 @@
 		"globalRoles": "전역 역할",
 		"users": "사용자",
 		"plugins": "플러그인",
-		"git": "Git",
 		"allProjects": "모든 프로젝트",
 		"project": "프로젝트",
 		"agents": "에이전트",
@@ -85,7 +84,7 @@
 	},
 	"userMenu": {
 		"signIn": "로그인",
-		"myProfile": "내 프로필",
+		"myProfile": "계정",
 		"apiKeys": "API 키",
 		"logOut": "로그아웃",
 		"loggingOut": "로그아웃 중…"

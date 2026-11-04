@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+
 /**
  * Machine-readable error codes returned by the API in error envelopes.
  * Switch on these values instead of HTTP status codes or message strings,
@@ -10,6 +12,18 @@ export const ApiErrorCode = {
 	TokenInvalid: "AUTH_TOKEN_INVALID",
 	Unauthenticated: "AUTH_UNAUTHENTICATED",
 	TooManyRequests: "TOO_MANY_REQUESTS",
+
+	// Second factor / login restriction errors.
+	MfaRequired: "AUTH_MFA_REQUIRED",
+	MfaInvalidCode: "AUTH_MFA_INVALID_CODE",
+	MfaSetupRequired: "AUTH_MFA_SETUP_REQUIRED",
+	IpNotAllowed: "AUTH_IP_NOT_ALLOWED",
+	MfaAlreadyEnabled: "MFA_ALREADY_ENABLED",
+	MfaUnavailable: "MFA_UNAVAILABLE",
+	PasskeyInvalid: "PASSKEY_INVALID",
+	PasskeyLimit: "PASSKEY_LIMIT",
+	InvalidCidr: "INVALID_CIDR",
+	SelfLockout: "SELF_LOCKOUT",
 
 	// Password / session gate errors.
 	PasswordChangeRequired: "AUTH_PASSWORD_CHANGE_REQUIRED",
@@ -39,12 +53,15 @@ export const ApiErrorCode = {
 	GitNotFound: "GIT_NOT_FOUND",
 	GitAlreadyLinked: "GIT_ALREADY_LINKED",
 	GitIdentityExists: "GIT_IDENTITY_EXISTS",
+	GitIdentityRequired: "GIT_IDENTITY_REQUIRED",
 	GitAccessNotGranted: "GIT_ACCESS_NOT_GRANTED",
+	GitRepositoryNotVisible: "GIT_REPOSITORY_NOT_VISIBLE",
 	GitNoIdentity: "GIT_NO_IDENTITY",
 	GitSetupInvalid: "GIT_SETUP_INVALID",
 	GitPublicURLRequired: "GIT_PUBLIC_URL_REQUIRED",
 	GitProviderUnavailable: "GIT_PROVIDER_UNAVAILABLE",
 	GitProviderRejected: "GIT_PROVIDER_REJECTED",
+	GitDescriptionTooLong: "GIT_DESCRIPTION_TOO_LONG",
 
 	// User domain errors.
 	UserNotFound: "USER_NOT_FOUND",
@@ -357,4 +374,48 @@ export function getApiErrorDetails(
 		response?: { data?: { error_details?: Record<string, string> } };
 	};
 	return err?.response?.data?.error_details ?? null;
+}
+
+/**
+ * Seconds a rate-limited or locked-out caller should wait, from the
+ * `retry_after_seconds` error detail or the `Retry-After` header. Returns
+ * `null` when the server gave none.
+ */
+export function getRetryAfterSeconds(error: unknown): number | null {
+	const fromDetails = Number(getApiErrorDetails(error)?.retry_after_seconds);
+	if (Number.isFinite(fromDetails) && fromDetails > 0) return fromDetails;
+	const header = (error as { response?: { headers?: Record<string, unknown> } })
+		?.response?.headers?.["retry-after"];
+	const fromHeader = Number(header);
+	return Number.isFinite(fromHeader) && fromHeader > 0 ? fromHeader : null;
+}
+
+/**
+ * Formats a wait as a localized duration ("15 minutes", "40 seconds"),
+ * rounding up so the user is never told to retry too early.
+ */
+export function formatWait(seconds: number, locale: string): string {
+	const minutes = seconds >= 60;
+	return new Intl.NumberFormat(locale, {
+		style: "unit",
+		unit: minutes ? "minute" : "second",
+		unitDisplay: "long",
+	}).format(minutes ? Math.ceil(seconds / 60) : Math.ceil(seconds));
+}
+
+/**
+ * The "too many attempts" sign-in message, naming the wait when the server
+ * said how long it is. `t` and `locale` come from the `auth` namespace hook.
+ */
+export function tooManyAttemptsMessage(
+	error: unknown,
+	t: TFunction<"auth">,
+	locale: string,
+): string {
+	const wait = getRetryAfterSeconds(error);
+	return wait === null
+		? t("login.errors.tooManyAttempts")
+		: t("login.errors.tooManyAttemptsWait", {
+				time: formatWait(wait, locale),
+			});
 }

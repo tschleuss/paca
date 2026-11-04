@@ -34,6 +34,8 @@ type fakeStore struct {
 	sessions map[string]*gitdom.SetupSession
 	access   map[string]*gitdom.AccessSession
 	bound    map[string]uuid.UUID
+
+	profileUpdates int
 }
 
 func newFakeStore() *fakeStore {
@@ -65,11 +67,14 @@ func (f *fakeStore) FindIdentity(_ context.Context, id uuid.UUID) (*gitdom.Ident
 	}
 	return nil, gitdom.ErrNotFound
 }
-func (f *fakeStore) FindSharedIdentity(context.Context, string, string) (*gitdom.Identity, error) {
-	if len(f.shared) == 0 {
-		return nil, gitdom.ErrNotFound
+func (f *fakeStore) ListProjectIdentities(_ context.Context, project uuid.UUID) ([]*gitdom.Identity, error) {
+	out := append([]*gitdom.Identity(nil), f.shared...)
+	for _, i := range f.byID {
+		if i.Scope == gitdom.ScopeProject && i.ProjectID != nil && *i.ProjectID == project {
+			out = append(out, i)
+		}
 	}
-	return f.shared[0], nil
+	return out, nil
 }
 func (f *fakeStore) FindAgentIdentity(_ context.Context, a uuid.UUID, _ string) (*gitdom.Identity, error) {
 	if i, ok := f.agentIDs[a]; ok {
@@ -78,13 +83,6 @@ func (f *fakeStore) FindAgentIdentity(_ context.Context, a uuid.UUID, _ string) 
 	return nil, gitdom.ErrNotFound
 }
 func (f *fakeStore) CreateIdentity(_ context.Context, i *gitdom.Identity) error {
-	if i.Scope == gitdom.ScopeShared {
-		for _, e := range f.shared {
-			if e.ProviderID == i.ProviderID && e.Host == i.Host {
-				return gitdom.ErrIdentityExists
-			}
-		}
-	}
 	i.ID = uuid.New()
 	if i.Scope == gitdom.ScopeShared {
 		f.shared = append(f.shared, i)
@@ -102,6 +100,21 @@ func (f *fakeStore) DeleteAgentIdentity(_ context.Context, a uuid.UUID, _ string
 		return gitdom.ErrNotFound
 	}
 	delete(f.agentIDs, a)
+	return nil
+}
+func (f *fakeStore) UpdateIdentityProfile(_ context.Context, id uuid.UUID, handle, name string, exp *time.Time) error {
+	i, ok := f.byID[id]
+	if !ok {
+		return gitdom.ErrNotFound
+	}
+	f.profileUpdates++
+	i.Handle = handle
+	if name != "" {
+		i.DisplayName = name
+	}
+	if exp != nil {
+		i.ExpiresAt = exp
+	}
 	return nil
 }
 func (f *fakeStore) DeleteIdentity(_ context.Context, id uuid.UUID) error {
@@ -201,6 +214,75 @@ func (f *fakeStore) FindRepository(_ context.Context, id uuid.UUID) (*gitdom.Rep
 	}
 	return nil, gitdom.ErrNotFound
 }
+func (f *fakeStore) DeleteRepository(_ context.Context, project, id uuid.UUID) error {
+	r, ok := f.repos[id]
+	if !ok || r.ProjectID != project {
+		return gitdom.ErrNotFound
+	}
+	delete(f.repos, id)
+	return nil
+}
+func (f *fakeStore) SetRepositoryDescription(_ context.Context, project, id uuid.UUID, d string) error {
+	r, ok := f.repos[id]
+	if !ok || r.ProjectID != project {
+		return gitdom.ErrNotFound
+	}
+	r.Description = d
+	return nil
+}
+func (f *fakeStore) ListIdentityRepositories(_ context.Context, id uuid.UUID) ([]*gitdom.Repository, error) {
+	var out []*gitdom.Repository
+	for _, r := range f.repos {
+		if r.IdentityID != nil && *r.IdentityID == id {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+func (f *fakeStore) ListProjectRepositories(_ context.Context, project uuid.UUID) ([]*gitdom.Repository, error) {
+	var out []*gitdom.Repository
+	for _, r := range f.repos {
+		if r.ProjectID == project {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+func (f *fakeStore) SetRepositoryIdentity(_ context.Context, id, identity uuid.UUID, ref json.RawMessage) error {
+	r, ok := f.repos[id]
+	if !ok {
+		return gitdom.ErrNotFound
+	}
+	r.IdentityID, r.ProviderRef, r.WebhookRef = &identity, ref, nil
+	return nil
+}
+func (f *fakeStore) CountRepositories(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]int, error) {
+	out := map[uuid.UUID]int{}
+	for _, r := range f.repos {
+		for _, id := range ids {
+			if r.IdentityID != nil && *r.IdentityID == id {
+				out[id]++
+			}
+		}
+	}
+	return out, nil
+}
+func (f *fakeStore) SetRepositoryWebhook(_ context.Context, id uuid.UUID, ref json.RawMessage) error {
+	r, ok := f.repos[id]
+	if !ok {
+		return gitdom.ErrNotFound
+	}
+	r.WebhookRef = ref
+	return nil
+}
+func (f *fakeStore) FindWebhookEndpointForIdentity(_ context.Context, id uuid.UUID) (*gitdom.WebhookEndpoint, error) {
+	for _, e := range f.endpoints {
+		if e.IdentityID != nil && *e.IdentityID == id {
+			return e, nil
+		}
+	}
+	return nil, gitdom.ErrNotFound
+}
 func (f *fakeStore) FindLinkedRepositories(_ context.Context, _, _, path string) ([]*gitdom.Repository, error) {
 	var out []*gitdom.Repository
 	for _, r := range f.repos {
@@ -240,6 +322,16 @@ func (f *fakeStore) AppendActionLog(_ context.Context, e *gitdom.ActionLogEntry)
 	return nil
 }
 
+func (f *fakeStore) WebhookAttempts(_ context.Context, project uuid.UUID) (map[uuid.UUID]bool, error) {
+	out := map[uuid.UUID]bool{}
+	for _, e := range f.log {
+		if e.Tool == "webhook.register" && e.RepositoryID != nil && e.ProjectID != nil && *e.ProjectID == project {
+			out[*e.RepositoryID] = true
+		}
+	}
+	return out, nil
+}
+
 func itoa(n int) string { b, _ := json.Marshal(n); return string(b) }
 
 type fakeProv struct {
@@ -258,6 +350,46 @@ type fakeProv struct {
 	mintEr         error
 	exp            time.Time
 	lastMint       gitprovider.MintRequest
+
+	ensured   []gitprovider.EnsureWebhookRequest
+	ensureErr error
+	removed   []gitprovider.RemoveWebhookRequest
+	describes int
+
+	describe    func(gitprovider.DescribeIdentityRequest) (gitprovider.Identity, error)
+	describeLog []gitprovider.DescribeIdentityRequest
+	describeCtx func(context.Context, gitprovider.DescribeIdentityRequest) (gitprovider.Identity, error)
+
+	list     func(gitprovider.ListReposRequest) (gitprovider.RepositoryPage, error)
+	listReqs []gitprovider.ListReposRequest
+}
+
+func (p *fakeProv) DescribeIdentity(ctx context.Context, r gitprovider.DescribeIdentityRequest) (gitprovider.Identity, error) {
+	p.describeLog = append(p.describeLog, r)
+	if p.describeCtx != nil {
+		return p.describeCtx(ctx, r)
+	}
+	return p.describe(r)
+}
+
+func (p *fakeProv) ListRepositories(_ context.Context, r gitprovider.ListReposRequest) (gitprovider.RepositoryPage, error) {
+	p.listReqs = append(p.listReqs, r)
+	if p.list == nil {
+		return gitprovider.RepositoryPage{}, nil
+	}
+	return p.list(r)
+}
+
+func (p *fakeProv) EnsureWebhook(_ context.Context, r gitprovider.EnsureWebhookRequest) (gitprovider.WebhookRef, error) {
+	if p.ensureErr != nil {
+		return gitprovider.WebhookRef{}, p.ensureErr
+	}
+	p.ensured = append(p.ensured, r)
+	return gitprovider.WebhookRef{ID: "hook-1"}, nil
+}
+func (p *fakeProv) RemoveWebhook(_ context.Context, r gitprovider.RemoveWebhookRequest) error {
+	p.removed = append(p.removed, r)
+	return nil
 }
 
 func (p *fakeProv) BeginIdentitySetup(_ context.Context, r gitprovider.BeginSetupRequest) (gitprovider.SetupStep, error) {
@@ -302,6 +434,7 @@ func (f fakeProviders) Describe(context.Context, string) (gitprovider.Info, erro
 		return gitprovider.Info{}, f.err
 	}
 	if fp, ok := f.p.(*fakeProv); ok {
+		fp.describes++
 		return fp.info, nil
 	}
 	if fp, ok := f.p.(interface{ providerInfo() gitprovider.Info }); ok {
@@ -352,6 +485,53 @@ func TestLinkRepository(t *testing.T) {
 	}
 }
 
+func TestLinkRepository_Description(t *testing.T) {
+	ctx := context.Background()
+	svc, st, pr := setup(t)
+	st.addIdentity("paca-bot", "app-1")
+	pr.resolve = func(r gitprovider.ResolveRepoRequest) (gitprovider.ResolvedRepository, error) {
+		return gitprovider.ResolvedRepository{
+			Repository: gitprovider.Repository{Ref: gitprovider.RepoRef{Host: "git.example", FullPath: "acme/web"}},
+			Identity:   gitprovider.IdentityRef{ID: "app-1"},
+		}, nil
+	}
+	project := uuid.New()
+	long := strings.Repeat("é", MaxDescriptionRunes+1)
+	if _, err := svc.LinkRepository(ctx, LinkInput{ProjectID: project, ProviderID: "p", PathOrURL: "acme/web", Description: long}); !errors.Is(err, gitdom.ErrDescriptionTooLong) {
+		t.Fatalf("too long: %v", err)
+	}
+	r, err := svc.LinkRepository(ctx, LinkInput{ProjectID: project, ProviderID: "p", PathOrURL: "acme/web", Description: "  Web client  "})
+	if err != nil || r.Description != "Web client" {
+		t.Fatalf("link = %+v %v", r, err)
+	}
+}
+
+func TestUpdateRepository(t *testing.T) {
+	ctx := context.Background()
+	svc, st, _ := setup(t)
+	project := uuid.New()
+	repo := &gitdom.Repository{ProjectID: project, FullPath: "acme/web"}
+	if err := st.CreateRepository(ctx, repo); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.UpdateRepository(ctx, project, repo.ID, "  API  ")
+	if err != nil || got.Description != "API" || st.repos[repo.ID].Description != "API" {
+		t.Fatalf("update = %+v %v", got, err)
+	}
+	if _, err := svc.UpdateRepository(ctx, project, repo.ID, strings.Repeat("x", MaxDescriptionRunes)); err != nil {
+		t.Fatalf("the limit itself is allowed: %v", err)
+	}
+	if _, err := svc.UpdateRepository(ctx, project, repo.ID, strings.Repeat("x", MaxDescriptionRunes+1)); !errors.Is(err, gitdom.ErrDescriptionTooLong) {
+		t.Fatalf("too long: %v", err)
+	}
+	if _, err := svc.UpdateRepository(ctx, uuid.New(), repo.ID, "x"); !errors.Is(err, gitdom.ErrNotFound) {
+		t.Fatalf("another project's repository: %v", err)
+	}
+	if _, err := svc.UpdateRepository(ctx, project, uuid.New(), "x"); !errors.Is(err, gitdom.ErrNotFound) {
+		t.Fatalf("unknown repository: %v", err)
+	}
+}
+
 func TestLinkRepository_NoIdentityForHost(t *testing.T) {
 	svc, st, _ := setup(t)
 	st.addIdentity("bot", "a")
@@ -368,8 +548,14 @@ func TestLinkRepository_ProviderErrorsPropagate(t *testing.T) {
 		return gitprovider.ResolvedRepository{}, &gitprovider.Error{Code: gitprovider.CodeNotFound}
 	}
 	_, err := svc.LinkRepository(context.Background(), LinkInput{ProjectID: uuid.New(), ProviderID: "p", PathOrURL: "x/y"})
-	if !gitprovider.IsCode(err, gitprovider.CodeNotFound) {
-		t.Fatalf("got %v", err)
+	if !errors.Is(err, gitdom.ErrNotVisible) {
+		t.Fatalf("a repository no connection sees (and no grant to offer): got %v", err)
+	}
+	pr.resolve = func(gitprovider.ResolveRepoRequest) (gitprovider.ResolvedRepository, error) {
+		return gitprovider.ResolvedRepository{}, &gitprovider.Error{Code: gitprovider.CodeRateLimited}
+	}
+	if _, err := svc.LinkRepository(context.Background(), LinkInput{ProjectID: uuid.New(), ProviderID: "p", PathOrURL: "x/y"}); !gitprovider.IsCode(err, gitprovider.CodeRateLimited) {
+		t.Fatalf("other provider errors still propagate: got %v", err)
 	}
 	down := New(st, fakeProviders{err: gitdom.ErrProviderUnavailable})
 	if _, err := down.LinkRepository(context.Background(), LinkInput{ProviderID: "p", PathOrURL: "x/y"}); !errors.Is(err, gitdom.ErrProviderUnavailable) {
@@ -546,16 +732,13 @@ func TestMintCredential_IdentityChoice(t *testing.T) {
 	if pr.lastMint.Target.Identity.ID != "shared-app" {
 		t.Fatalf("fallback: %+v", pr.lastMint.Target.Identity)
 	}
-	// A repository whose identity is gone falls back to the host's shared identity.
+	// A repository whose connection is gone has no credential: another
+	// connection of the host is not its own, so there is no fallback.
 	repo.IdentityID = nil
 	pr.mints = 0
 	svc2 := New(st, fakeProviders{p: pr})
-	if _, err := svc2.MintCredential(ctx, MintInput{RepositoryID: repo.ID, Access: gitprovider.AccessRead}); err != nil || pr.lastMint.Target.Identity.ID != "shared-app" {
-		t.Fatalf("shared fallback: %v %+v", err, pr.lastMint.Target.Identity)
-	}
-	st.shared, st.byRef = nil, map[string]*gitdom.Identity{}
-	if _, err := svc2.MintCredential(ctx, MintInput{RepositoryID: repo.ID, Access: gitprovider.AccessWrite}); !errors.Is(err, gitdom.ErrNoIdentity) {
-		t.Fatalf("no identity: %v", err)
+	if _, err := svc2.MintCredential(ctx, MintInput{RepositoryID: repo.ID, Access: gitprovider.AccessRead}); !errors.Is(err, gitdom.ErrNoIdentity) || pr.mints != 0 {
+		t.Fatalf("no fallback to another connection: %v mints=%d", err, pr.mints)
 	}
 }
 
@@ -637,11 +820,51 @@ func TestHandleWebhook_AReviewNeverRewindsALifecycleState(t *testing.T) {
 	if got := fs.crs[len(fs.crs)-1]; got.State != "merged" || got.MergedAt == nil {
 		t.Fatalf("merged event: %+v", got)
 	}
-	// And a reopening or a push clears it.
-	pr.events = []gitprovider.Event{prEvent("o1", "synchronized", "feat/x", "Add")}
+	// And a reopening clears it.
+	pr.events = []gitprovider.Event{prEvent("o1", "reopened", "feat/x", "Add")}
 	_, _ = svc.HandleWebhook(ctx, "k", Delivery{Method: "POST"})
 	if got := fs.crs[len(fs.crs)-1]; got.State != "open" || got.MergedAt != nil {
 		t.Fatalf("an update of an open request: %+v", got)
+	}
+}
+
+func TestHandleWebhook_EditsAndPushesKeepTheCachedState(t *testing.T) {
+	ctx := context.Background()
+	merged := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	cases := []struct {
+		name, cached, action, want string
+		mergedAt                   bool
+	}{
+		{"edited after merged", "merged", "edited", "merged", true},
+		{"synchronized after closed", "closed", "synchronized", "closed", false},
+		{"reopened after closed", "closed", "reopened", "open", false},
+		{"reopened after merged", "merged", "reopened", "open", false},
+		{"edited on a request never seen", "", "edited", "open", false},
+		{"synchronized on an open request", "open", "synchronized", "open", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fs, pr := newFakeStore(), &fakeProv{}
+			ts := &trackStore{fakeStore: fs}
+			svc := New(ts, fakeProviders{p: pr})
+			ident := fs.addIdentity("bot", "a")
+			fs.endpoints["k"] = &gitdom.WebhookEndpoint{Key: "k", ProviderID: "p", IdentityID: &ident.ID}
+			linked(fs, uuid.New(), "acme/web")
+			if c.cached != "" {
+				ts.cur = &gitdom.ChangeRequest{Number: "7", State: c.cached}
+				if c.cached == "merged" {
+					ts.cur.MergedAt = &merged
+				}
+			}
+			pr.events = []gitprovider.Event{prEvent("e1", c.action, "feat/x", "Add")}
+			if _, err := svc.HandleWebhook(ctx, "k", Delivery{Method: "POST"}); err != nil {
+				t.Fatal(err)
+			}
+			got := fs.crs[len(fs.crs)-1]
+			if got.State != c.want || (got.MergedAt != nil) != c.mergedAt {
+				t.Fatalf("state %q mergedAt %v, want %q (merged_at set: %v)", got.State, got.MergedAt, c.want, c.mergedAt)
+			}
+		})
 	}
 }
 
@@ -713,5 +936,73 @@ func TestWebhookKeysThatCannotBeOursAreNotFound(t *testing.T) {
 	}
 	if err := svc.CheckWebhookEndpoint(ctx, "ready"); err != nil {
 		t.Errorf("a real key: %v", err)
+	}
+}
+
+func TestLinkRepository_ProviderMessageRidesAlongNotVisible(t *testing.T) {
+	svc, st, pr := setup(t)
+	st.addIdentity("bot", "a")
+	const msg = "The connected project token covers only acme/ui. Add a connection for acme/api."
+	for _, code := range []gitprovider.ErrorCode{gitprovider.CodeNotFound, gitprovider.CodeForbidden} {
+		pr.resolve = func(gitprovider.ResolveRepoRequest) (gitprovider.ResolvedRepository, error) {
+			return gitprovider.ResolvedRepository{}, &gitprovider.Error{Code: code, Message: msg}
+		}
+		_, err := svc.LinkRepository(context.Background(), LinkInput{ProjectID: uuid.New(), ProviderID: "p", PathOrURL: "acme/api"})
+		var de *gitdom.DetailedError
+		if !errors.Is(err, gitdom.ErrNotVisible) || !errors.As(err, &de) || de.Detail != msg {
+			t.Fatalf("%s: got %v (%+v)", code, err, de)
+		}
+		if err.Error() != gitdom.ErrNotVisible.Error() {
+			t.Fatalf("text must stay the sentinel's: %q", err.Error())
+		}
+	}
+	// No message from the provider: the bare sentinel, as before.
+	pr.resolve = func(gitprovider.ResolveRepoRequest) (gitprovider.ResolvedRepository, error) {
+		return gitprovider.ResolvedRepository{}, &gitprovider.Error{Code: gitprovider.CodeNotFound}
+	}
+	_, err := svc.LinkRepository(context.Background(), LinkInput{ProjectID: uuid.New(), ProviderID: "p", PathOrURL: "acme/api"})
+	if err != gitdom.ErrNotVisible {
+		t.Fatalf("got %#v", err)
+	}
+}
+
+func TestProviderMessage(t *testing.T) {
+	if ProviderMessage(errors.New("plain")) != "" || ProviderMessage(nil) != "" {
+		t.Fatal("only provider failures carry a message")
+	}
+	got := ProviderMessage(&gitprovider.Error{Message: " a\nb\x00 ghp_" + strings.Repeat("z", 30) + " "})
+	if got != "a b ***" {
+		t.Fatalf("got %q", got)
+	}
+	long := ProviderMessage(&gitprovider.Error{Message: strings.Repeat("é", 700)})
+	if r := []rune(long); len(r) != 501 || r[500] != '…' {
+		t.Fatalf("cap: %d", len(r))
+	}
+}
+
+func TestFindTaskRefs(t *testing.T) {
+	cases := []struct {
+		in   string
+		want []taskRef
+	}{
+		{"feat/PACA-12-login", []taskRef{{"PACA", 12}}},
+		{"Fix PACA-12", []taskRef{{"PACA", 12}}},
+		{"paca/PACA-1", []taskRef{{"PACA", 1}}},
+		{"fix-PACA-12-login", []taskRef{{"PACA", 12}}},
+		{"feat-paca-12", []taskRef{{"paca", 12}}},
+		{"TRIM-UI-200", nil},
+		{"fix TRIM-UI-200 and PACA-7", []taskRef{{"PACA", 7}}},
+	}
+	for _, c := range cases {
+		got := findTaskRefs(c.in)
+		if len(got) != len(c.want) {
+			t.Errorf("findTaskRefs(%q) = %v, want %v", c.in, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("findTaskRefs(%q) = %v, want %v", c.in, got, c.want)
+			}
+		}
 	}
 }

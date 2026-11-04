@@ -100,7 +100,7 @@ This document lists all MCP tools implemented for the Paca API server.
 
 ### 14. Git (27 tools)
 Available when a Git provider is installed. Credentials are minted per command from the core Git API and never stored.
-- `list_repositories` - List the repositories linked to a project
+- `list_repositories` - List the repositories linked to a project, with their descriptions (used to pick the right one)
 - `clone_repository` - Clone a linked repository into the workspace
 - `push_branch` - Push a branch of a linked repository
 - `workspace_inspect` - Survey the working directory and the checkouts in it
@@ -110,7 +110,7 @@ Available when a Git provider is installed. Credentials are minted per command f
 - `change_request_get_context` - Pull/merge request with files, review threads and CI in one call
 - `change_request_get_diff` - Unified diff, whole or per file
 - `review_list_threads` - Review threads with comments and resolved state
-- `issue_get` / `comment_list` - Read an issue and the comments on an issue or pull request
+- `issue_list` / `issue_get` / `comment_list` - List issues, read an issue, and read comments on an issue or pull request
 - `checks_get` / `checks_get_logs` - CI results and the tail of a failing log
 - `repo_get_file` / `repo_search_code` - Read a file or search code without a clone
 - `change_request_open` / `change_request_update` - Open or edit a pull/merge request

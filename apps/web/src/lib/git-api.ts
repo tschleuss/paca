@@ -21,19 +21,33 @@ export interface GitProvider {
 		access_grants: boolean;
 		/** Branches can be looked up and created through the provider. */
 		branches?: boolean;
+		/** The kinds of connection the provider offers, the default first. */
+		identity_kinds?: GitConnectionKind[];
+		/** What each kind implies; absent: every kind behaves as the provider says. */
+		kinds?: { kind: GitConnectionKind; access_grants: boolean }[];
 	};
 }
 
-/** A bot identity (for example a GitHub App) on a Git platform host. */
+/** How a connection exists on the platform: an App/bot, or an access token. */
+export type GitConnectionKind = "app" | "bot_user" | "token";
+
+/**
+ * A connection: the credential (a GitHub App, an access token) Paca reaches a
+ * Git platform with. `shared` ones are usable by every project, `project` ones
+ * by `project_id` only, `agent` ones by one agent.
+ */
 export interface GitIdentity {
 	id: string;
 	provider_id: string;
 	host: string;
 	kind: string;
-	scope: "shared" | "agent";
+	scope: "shared" | "project" | "agent";
+	project_id: string | null;
 	handle: string;
 	display_name: string;
 	expires_at: string | null;
+	/** How many linked repositories, in every project, use this connection. */
+	repository_count?: number;
 	created_at: string;
 }
 
@@ -77,12 +91,24 @@ export async function listGitProviders(): Promise<GitProvider[]> {
 	return data.data;
 }
 
-export async function listGitIdentities(): Promise<GitIdentity[]> {
-	const { data } =
-		await apiClient.instance.get<SuccessEnvelope<GitIdentity[]>>(
-			"/git/identities",
-		);
-	return data.data;
+/**
+ * The kinds of connection a user can choose between when adding one (the
+ * default first). A provider lists `kinds` only when setup really offers a
+ * choice; otherwise there is one way to connect and nothing to pick.
+ */
+export function connectionKindsOf(provider: GitProvider): GitConnectionKind[] {
+	const choosable = provider.capabilities.kinds?.map((k) => k.kind) ?? [];
+	if (choosable.length > 0) return choosable;
+	return [provider.capabilities.identity_kinds?.[0] ?? "app"];
+}
+
+/** Whether a connection of this kind must be granted access per account. */
+export function kindNeedsAccessGrant(
+	provider: GitProvider,
+	kind: string,
+): boolean {
+	const profile = provider.capabilities.kinds?.find((k) => k.kind === kind);
+	return profile ? profile.access_grants : provider.capabilities.access_grants;
 }
 
 export async function beginGitSetup(
@@ -115,36 +141,36 @@ export const gitProvidersQueryOptions = queryOptions({
 	staleTime: 60 * 1000,
 });
 
-export const gitIdentitiesKey = ["git", "identities"] as const;
+/** Root of every Git query, for refreshing them all after a change. */
+export const gitQueriesKey = ["git"] as const;
 
-export const gitIdentitiesQueryOptions = queryOptions({
-	queryKey: gitIdentitiesKey,
-	queryFn: listGitIdentities,
-});
+/** Where the browser lands when a return URL is missing or not ours. */
+export const GIT_FALLBACK_PATH = "/home";
 
-/** The admin page identity setup starts from and returns to. */
-export const GIT_ADMIN_PATH = "/admin/git";
+/** A project's settings page, on its Git section. */
+export const projectGitSettingsPath = (projectId: string) =>
+	`/projects/${projectId}/settings#git`;
 
 /**
  * Turns the `return_url` the API reports into a same-origin path the router
  * can navigate to. The API only accepts a return URL on its own origin, but
  * the browser does not rely on that: anything that is not a same-origin path
- * falls back to the admin page.
+ * falls back to the home page.
  */
 export function returnPathOf(
 	returnUrl: string | null | undefined,
 	origin: string = window.location.origin,
 ): string {
-	if (!returnUrl) return GIT_ADMIN_PATH;
+	if (!returnUrl) return GIT_FALLBACK_PATH;
 	try {
 		const u = new URL(returnUrl, origin);
-		if (u.origin !== origin) return GIT_ADMIN_PATH;
+		if (u.origin !== origin) return GIT_FALLBACK_PATH;
 		return (
 			sanitizeRedirect(`${u.pathname}${u.search}${u.hash}`, origin) ??
-			GIT_ADMIN_PATH
+			GIT_FALLBACK_PATH
 		);
 	} catch {
-		return GIT_ADMIN_PATH;
+		return GIT_FALLBACK_PATH;
 	}
 }
 
@@ -185,9 +211,23 @@ export interface GitRepository {
 	full_path: string;
 	default_branch: string;
 	clone_url: string;
+	/** What the repository is for (at most 1000 characters); empty when unset. */
+	description: string;
 	identity_id: string | null;
 	/** What to @mention to reach the bot serving the repository; empty when unknown. */
 	identity_handle: string;
+	/**
+	 * Set when the platform must be told by hand where to deliver events for
+	 * this repository: its connection needs a webhook per repository and none
+	 * could be registered automatically.
+	 */
+	webhook_url?: string;
+	/**
+	 * False when Paca never tried to register this repository's webhook (for
+	 * example it was carried over from an earlier version of a provider plugin),
+	 * as opposed to having tried and failed.
+	 */
+	webhook_attempted?: boolean;
 	created_at: string;
 }
 
@@ -218,11 +258,61 @@ export async function listGitRepositories(
 
 export async function linkGitRepository(
 	projectId: string,
-	payload: { provider_id: string; host?: string; path_or_url: string },
+	payload: {
+		provider_id: string;
+		host?: string;
+		path_or_url: string;
+		/** The connection to link through; empty: any the project can use. */
+		identity_id?: string;
+		description?: string;
+	},
 ): Promise<GitRepository> {
 	const { data } = await apiClient.instance.post<
 		SuccessEnvelope<GitRepository>
 	>(`${projectGit(projectId)}/repositories`, payload);
+	return data.data;
+}
+
+/** A repository a connection can see on the platform (not necessarily linked). */
+export interface AvailableGitRepository {
+	full_path: string;
+	host: string;
+	default_branch: string;
+	private: boolean;
+	description: string;
+}
+
+export interface AvailableGitRepositories {
+	items: AvailableGitRepository[];
+	next_cursor?: string;
+	/** False when the provider cannot list repositories: ask for a path or URL. */
+	supported: boolean;
+}
+
+export async function listAvailableGitRepositories(
+	projectId: string,
+	identityId: string,
+	params: { q?: string; cursor?: string },
+): Promise<AvailableGitRepositories> {
+	const { data } = await apiClient.instance.get<
+		SuccessEnvelope<AvailableGitRepositories>
+	>(`${projectGit(projectId)}/connections/${identityId}/repositories`, {
+		params: {
+			...(params.q ? { q: params.q } : {}),
+			...(params.cursor ? { cursor: params.cursor } : {}),
+		},
+	});
+	return data.data;
+}
+
+export async function updateGitRepository(
+	projectId: string,
+	repositoryId: string,
+	payload: { description: string },
+): Promise<GitRepository> {
+	const { data } = await apiClient.instance.patch<
+		SuccessEnvelope<GitRepository>
+	>(`${projectGit(projectId)}/repositories/${repositoryId}`, payload);
 	return data.data;
 }
 
@@ -235,7 +325,36 @@ export async function unlinkGitRepository(
 	);
 }
 
-/** Starts granting the shared identity access to a repository owner's account. */
+/**
+ * Points a repository whose connection was deleted at a connection again. It
+ * must see the repository; empty `identityId` lets Paca try every connection
+ * the project can use.
+ */
+export async function reconnectGitRepository(
+	projectId: string,
+	repositoryId: string,
+	identityId?: string,
+): Promise<GitRepository> {
+	const { data } = await apiClient.instance.post<
+		SuccessEnvelope<GitRepository>
+	>(`${projectGit(projectId)}/repositories/${repositoryId}/reconnect`, {
+		...(identityId ? { identity_id: identityId } : {}),
+	});
+	return data.data;
+}
+
+/** Retries registering a linked repository's webhook on the platform. */
+export async function registerGitWebhook(
+	projectId: string,
+	repositoryId: string,
+): Promise<GitRepository> {
+	const { data } = await apiClient.instance.post<
+		SuccessEnvelope<GitRepository>
+	>(`${projectGit(projectId)}/repositories/${repositoryId}/webhook`);
+	return data.data;
+}
+
+/** Starts granting a connection access to a repository owner's account. */
 export async function beginGitAccess(
 	projectId: string,
 	payload: {
@@ -243,6 +362,8 @@ export async function beginGitAccess(
 		host?: string;
 		owner: string;
 		return_url: string;
+		/** The connection to grant; required when the project has several. */
+		identity_id?: string;
 	},
 ): Promise<GitSetupStep> {
 	const { data } = await apiClient.instance.post<SuccessEnvelope<GitSetupStep>>(
@@ -268,6 +389,58 @@ export const gitProjectProvidersQueryOptions = (projectId: string) =>
 		queryKey: ["git", "projects", projectId, "providers"] as const,
 		queryFn: () => listProjectGitProviders(projectId),
 		staleTime: 60 * 1000,
+	});
+
+// ── A project's connections ──────────────────────────────────────────────────
+
+/** The workspace's connections and the project's own. */
+export async function listGitConnections(
+	projectId: string,
+): Promise<GitIdentity[]> {
+	const { data } = await apiClient.instance.get<SuccessEnvelope<GitIdentity[]>>(
+		`${projectGit(projectId)}/connections`,
+	);
+	return data.data;
+}
+
+/** Starts a connection only this project can use. */
+export async function beginProjectGitSetup(
+	projectId: string,
+	payload: BeginGitSetupPayload,
+): Promise<GitSetupStep> {
+	const { data } = await apiClient.instance.post<SuccessEnvelope<GitSetupStep>>(
+		`${projectGit(projectId)}/connections/setup`,
+		payload,
+	);
+	return data.data;
+}
+
+export async function completeProjectGitSetup(
+	projectId: string,
+	state: string,
+	params: Record<string, string>,
+): Promise<GitSetupCompletion> {
+	const { data } = await apiClient.instance.post<
+		SuccessEnvelope<GitSetupCompletion>
+	>(`${projectGit(projectId)}/connections/setup/complete`, { state, params });
+	return data.data;
+}
+
+/** Removes a connection that belongs to this project. */
+export async function deleteProjectGitConnection(
+	projectId: string,
+	id: string,
+): Promise<void> {
+	await apiClient.instance.delete(`${projectGit(projectId)}/connections/${id}`);
+}
+
+export const gitConnectionsKey = (projectId: string) =>
+	["git", "projects", projectId, "connections"] as const;
+
+export const gitConnectionsQueryOptions = (projectId: string) =>
+	queryOptions({
+		queryKey: gitConnectionsKey(projectId),
+		queryFn: () => listGitConnections(projectId),
 	});
 
 export const gitRepositoriesKey = (projectId: string) =>
@@ -311,6 +484,7 @@ export function repoOwnerOf(input: string): string {
  */
 export type GitFlowHint =
 	| { kind: "identity" }
+	| { kind: "project-identity"; projectId: string }
 	| { kind: "access"; projectId: string };
 
 const FLOW_PREFIX = "paca.git.flow.";
@@ -330,7 +504,12 @@ export function readGitFlow(state: string): GitFlowHint {
 		const raw = window.sessionStorage.getItem(FLOW_PREFIX + state);
 		if (raw) {
 			const v = JSON.parse(raw) as GitFlowHint;
-			if (v.kind === "access" && typeof v.projectId === "string") return v;
+			if (
+				(v.kind === "access" || v.kind === "project-identity") &&
+				typeof v.projectId === "string"
+			) {
+				return v;
+			}
 		}
 	} catch {
 		// fall through
@@ -691,8 +870,11 @@ const SETUP_ERROR_KEYS: Partial<Record<ApiErrorCode, string>> = {
 	GIT_PROVIDER_REJECTED: "providerRejected",
 	GIT_NOT_FOUND: "notFound",
 	GIT_ACCESS_NOT_GRANTED: "accessNotGranted",
+	GIT_REPOSITORY_NOT_VISIBLE: "notVisible",
 	GIT_NO_IDENTITY: "noIdentity",
 	GIT_ALREADY_LINKED: "alreadyLinked",
+	GIT_IDENTITY_REQUIRED: "identityRequired",
+	GIT_DESCRIPTION_TOO_LONG: "descriptionTooLong",
 };
 
 /** The API's error code for a failed call, as a plain string (null when absent). */
@@ -706,4 +888,26 @@ export function getApiErrorCodeSafe(err: unknown): string | null {
 export function gitErrorKey(err: unknown): string {
 	const code = getApiErrorCode(err);
 	return (code && SETUP_ERROR_KEYS[code]) || "generic";
+}
+
+const MAX_PROVIDER_MESSAGE = 500;
+
+/**
+ * What the platform itself said about a failed Git call (the API's
+ * `error_details.provider_message`), for showing under the generic message.
+ * It is untrusted free text: render it as text only, never as HTML. Null when
+ * the platform said nothing.
+ */
+export function gitProviderMessage(err: unknown): string | null {
+	const msg = (
+		err as {
+			response?: { data?: { error_details?: { provider_message?: unknown } } };
+		}
+	)?.response?.data?.error_details?.provider_message;
+	if (typeof msg !== "string") return null;
+	const text = msg.trim();
+	if (!text) return null;
+	return text.length > MAX_PROVIDER_MESSAGE
+		? `${text.slice(0, MAX_PROVIDER_MESSAGE)}…`
+		: text;
 }

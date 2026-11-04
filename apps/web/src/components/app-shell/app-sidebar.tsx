@@ -25,7 +25,6 @@ import {
 	FolderKanban,
 	FolderOpen,
 	GanttChart,
-	GitBranch,
 	Home,
 	KanbanSquare,
 	Loader2,
@@ -1815,9 +1814,9 @@ export function AppSidebar() {
 	const canAccessPlugins = hasPermission("plugins:write");
 
 	const canAccessSettings =
-		hasPermission("settings:write") || hasPermission("settings.sso:write");
-
-	const canAccessGit = hasPermission("git.identities:manage");
+		hasPermission("settings:write") ||
+		hasPermission("settings.sso:write") ||
+		hasPermission("settings.security:write");
 
 	const canCreateProject = hasPermission("projects:create");
 
@@ -1836,7 +1835,6 @@ export function AppSidebar() {
 		canAccessGlobalAgents ||
 		canAccessServiceAccounts ||
 		canAccessPlugins ||
-		canAccessGit ||
 		canAccessSettings;
 	// Plugin-contributed admin pages get their own sidebar section, separate
 	// from core workspace administration.
@@ -1973,13 +1971,6 @@ export function AppSidebar() {
 													exact
 												/>
 											) : null}
-											{canAccessGit ? (
-												<NavItem
-													to="/admin/git"
-													icon={GitBranch}
-													label={t("nav.git")}
-												/>
-											) : null}
 											{canAccessSettings ? (
 												<NavItem
 													to="/admin/settings"
@@ -2023,7 +2014,10 @@ export function AppSidebar() {
 				<UserMenu />
 			</SidebarFooter>
 
-			<SidebarRail />
+			{/* One gesture per edge: while open the edge only resizes (collapse
+			   with the header toggle); the click-to-toggle rail exists only
+			   while collapsed, to bring the sidebar back. */}
+			{sidebarState === "collapsed" && <SidebarRail />}
 			{!isMobile && sidebarState === "expanded" && (
 				<PaneResizeHandle
 					config={SIDEBAR_PANE}

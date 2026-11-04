@@ -36,7 +36,8 @@
 			"changeRoleAction": "Đổi vai trò",
 			"deleteAction": "Xóa người dùng",
 			"pwdResetHint": "Người dùng này phải đặt mật khẩu mới ở lần đăng nhập tiếp theo",
-			"columnActions": "Thao tác"
+			"columnActions": "Thao tác",
+			"securityAction": "Bảo mật"
 		},
 		"formDialog": {
 			"createdTitle": "Đã tạo người dùng",
@@ -142,6 +143,24 @@
 			"title": "Không có người dùng phù hợp",
 			"description": "Hãy thử từ khóa hoặc bộ lọc vai trò khác.",
 			"clear": "Xóa bộ lọc"
+		},
+		"security": {
+			"title": "Bảo vệ đăng nhập của {{name}}",
+			"description": "Kiểm soát nơi người này được đăng nhập và xóa xác minh hai bước của họ.",
+			"ip": {
+				"label": "Địa chỉ IP được phép",
+				"hint": "Mỗi dòng một địa chỉ IP hoặc dải CIDR. Để trống để cho phép mọi địa chỉ. Áp dụng cho đăng nhập bằng mật khẩu."
+			},
+			"mfa": {
+				"title": "Xác minh hai bước",
+				"description": "Nếu họ mất cả thiết bị lẫn mã khôi phục, hãy xóa để họ thiết lập lại.",
+				"reset": "Đặt lại xác minh hai bước",
+				"confirmReset": "Có, đặt lại",
+				"resetDone": "Đã đặt lại xác minh hai bước. Họ có thể thiết lập lại vào lần đăng nhập tiếp theo.",
+				"resetFailed": "Không thể đặt lại xác minh hai bước."
+			},
+			"cancel": "Hủy",
+			"save": "Lưu"
 		}
 	},
 	"globalRoles": {
@@ -303,8 +322,12 @@
 				"description": "Tạo, sửa, xóa tài khoản dịch vụ và cấp hoặc thu hồi khóa API"
 			},
 			"gitIdentitiesManage": {
-				"label": "Quản lý danh tính Git",
-				"description": "Thiết lập và gỡ các danh tính GitHub (hoặc nền tảng Git khác) mà tác nhân sử dụng, trên toàn bộ không gian làm việc"
+				"label": "Quản lý kết nối Git của không gian làm việc",
+				"description": "Thêm và gỡ các GitHub App và access token mà mọi dự án trong không gian làm việc đều có thể dùng"
+			},
+			"settingsSecurityWrite": {
+				"label": "Quản lý bảo mật đăng nhập",
+				"description": "Đặt ai phải dùng xác minh hai bước và địa chỉ IP nào được phép đăng nhập, đồng thời đặt lại xác minh hai bước của người khác. Gỡ bảo vệ này khỏi một tài khoản tương đương với chiếm quyền tài khoản đó, vì vậy hãy coi nó như quyền quản trị viên đầy đủ."
 			}
 		},
 		"permissionGroups": {
@@ -479,6 +502,38 @@
 				"loadFailed": "Không thể tải danh sách nhà cung cấp SSO.",
 				"deleteFailed": "Không thể xóa nhà cung cấp. Vui lòng thử lại."
 			}
+		},
+		"nav": {
+			"workspace": "Không gian làm việc",
+			"signIn": "Đăng nhập",
+			"branding": "Thương hiệu",
+			"sso": "Đăng nhập một lần (SSO)",
+			"security": "Bảo mật đăng nhập"
+		},
+		"security": {
+			"roles": {
+				"title": "Vai trò được bảo vệ",
+				"description": "Các quy tắc bên dưới áp dụng cho người có bất kỳ vai trò nào bạn chọn. Bật Tất cả vai trò để áp dụng cho mọi người, kể cả các vai trò tạo sau này.",
+				"all": "Tất cả vai trò"
+			},
+			"mfa": {
+				"title": "Bắt buộc xác minh hai bước",
+				"description": "Người có vai trò được bảo vệ phải thiết lập ứng dụng xác thực trước khi đăng nhập bằng mật khẩu. Đăng nhập SSO phụ thuộc vào cài đặt đa yếu tố của nhà cung cấp danh tính của bạn.",
+				"rolloutNote": "Người chưa thiết lập sẽ được hướng dẫn thiết lập vào lần đăng nhập tiếp theo."
+			},
+			"ip": {
+				"title": "Địa chỉ IP được phép",
+				"description": "Giới hạn đăng nhập bằng mật khẩu của các vai trò được bảo vệ ở những địa chỉ này. Để trống để cho phép mọi địa chỉ.",
+				"hint": "Mỗi dòng một địa chỉ IP hoặc dải CIDR, ví dụ 203.0.113.0/24. Hỗ trợ IPv4 và IPv6.",
+				"lockoutWarning": "Hãy đảm bảo địa chỉ của chính bạn nằm trong danh sách, nếu không bạn có thể bị khóa. Đăng nhập SSO không bị ảnh hưởng."
+			},
+			"noRoles": "Chưa có vai trò nào được bảo vệ nên các quy tắc này hiện không áp dụng cho ai.",
+			"errors": {
+				"invalidCidr": "Một trong các mục không phải địa chỉ IP hoặc dải CIDR hợp lệ.",
+				"selfLockout": "Địa chỉ IP của chính bạn phải có trong danh sách, nếu không bạn sẽ tự khóa mình. Hãy thêm vào và lưu lại.",
+				"saveFailed": "Lưu thất bại. Vui lòng thử lại.",
+				"loadFailed": "Không thể tải cài đặt bảo mật đăng nhập."
+			}
 		}
 	},
 	"serviceAccounts": {
@@ -635,17 +690,8 @@
 		}
 	},
 	"git": {
-		"title": "Git",
-		"description": "Danh tính bot cho phép các agent clone, push và mở pull request hoặc merge request trên các nền tảng Git của bạn. Mỗi host có một danh tính dùng chung; agent cũng có thể có danh tính riêng trong phần cài đặt của mình.",
-		"noProviders": {
-			"title": "Chưa cài nhà cung cấp Git nào",
-			"description": "Hãy cài một plugin nhà cung cấp Git, chẳng hạn GitHub Integration, để thiết lập danh tính bot.",
-			"action": "Quản lý plugin"
-		},
 		"cancel": "Hủy",
-		"identity": {},
 		"setup": {
-			"button": "Thiết lập",
 			"dialogTitle": "Thiết lập {{provider}} trên {{host}}",
 			"dialogDescription": "Paca sẽ tạo trên {{host}} một danh tính bot để các agent dùng khi clone, push và làm việc với {{changeRequests}}. Bạn sẽ được chuyển đến {{host}} để phê duyệt, rồi quay lại đây.",
 			"name": "Tên ứng dụng (tùy chọn)",
@@ -655,13 +701,50 @@
 			"start": "Tiếp tục đến {{host}}",
 			"submitToken": "Lưu",
 			"public": "Cho phép cài đặt trên tài khoản khác (ứng dụng công khai)",
-			"publicHelp": "Cần khi các dự án dùng repository của những người dùng hoặc tổ chức khác nhau. Ứng dụng riêng tư chỉ cài được trên tài khoản sở hữu nó."
+			"publicHelp": "Cần khi các dự án dùng repository của những người dùng hoặc tổ chức khác nhau. Ứng dụng riêng tư chỉ cài được trên tài khoản sở hữu nó.",
+			"next": "Tiếp theo",
+			"tokenDescription": "Paca kết nối tới {{host}} bằng một access token mà bạn tạo ở đó. Ở bước tiếp theo, bạn dán token vào.",
+			"host": "Máy chủ",
+			"hostHelp": "Địa chỉ của hệ thống của bạn, ví dụ gitlab.example.com.",
+			"kind": {
+				"label": "Kết nối bằng",
+				"app": {
+					"title": "Ứng dụng (App)",
+					"help": "Paca tạo một ứng dụng trên {{provider}} cho bạn. Quyền truy cập chỉ giới hạn ở các kho bạn cài ứng dụng vào."
+				},
+				"bot_user": {
+					"title": "Access token",
+					"help": "Dán access token của dự án hoặc nhóm. Paca hoạt động với tư cách người dùng bot của token đó."
+				},
+				"token": {
+					"title": "Access token",
+					"help": "Dán personal access token. Token hoạt động với tư cách chủ sở hữu, vì vậy hãy dùng một tài khoản máy riêng."
+				}
+			},
+			"scope": {
+				"label": "Phạm vi sử dụng",
+				"project": {
+					"title": "Chỉ dự án này",
+					"help": "Chỉ dự án này có thể liên kết kho thông qua kết nối này."
+				},
+				"workspace": {
+					"title": "Tất cả dự án",
+					"help": "Mọi dự án trong không gian làm việc đều có thể liên kết kho thông qua kết nối này.",
+					"noPermission": "Cần quyền quản lý kết nối Git ở cấp không gian làm việc."
+				},
+				"none": "Bạn không có quyền thêm kết nối tại đây."
+			}
 		},
 		"delete": {
 			"button": "Gỡ bỏ",
-			"title": "Gỡ bỏ danh tính này?",
-			"description": "Các agent sẽ không còn hoạt động với tư cách {{name}} trên {{host}} và sẽ chuyển sang danh tính khác. Các repository đã liên kết vẫn được giữ nguyên. Ứng dụng trên nền tảng không bị xóa; hãy xóa ở đó nếu bạn không cần nữa.",
-			"confirm": "Gỡ bỏ danh tính"
+			"title": "Gỡ kết nối này?",
+			"description": "Các kho đã liên kết qua {{name}} trên {{host}} sẽ ngừng hoạt động cho đến khi bạn kết nối lại qua một kết nối khác. Bản thân ứng dụng hoặc token không bị xóa trên nền tảng; hãy xóa ở đó nếu bạn không cần nữa.",
+			"confirm": "Gỡ kết nối",
+			"usage": {
+				"title": "Các kho đang dùng ({{count}}):",
+				"others": "Cùng {{count}} kho ở các dự án khác.",
+				"consequence": "Chúng vẫn được liên kết nhưng không còn thông tin xác thực nên agent không dùng được. Sau đó hãy kết nối lại từng kho với một kết nối khác."
+			}
 		},
 		"callback": {
 			"working": "Đang hoàn tất thiết lập…",
@@ -679,23 +762,6 @@
 			"notFound": "Không tìm thấy."
 		},
 		"copy": "Sao chép",
-		"copied": "Đã sao chép",
-		"status": {
-			"connected": "Đã kết nối",
-			"notConnected": "Chưa kết nối"
-		},
-		"platforms": {
-			"title": "Nền tảng Git",
-			"description": "Mỗi nền tảng cần một danh tính bot dùng chung."
-		},
-		"connect": {
-			"title": "Kết nối {{provider}}",
-			"description": "Paca tạo một tài khoản bot trên {{host}} để các tác nhân đọc mã, đẩy nhánh, mở pull request và bình luận.",
-			"time": "Mất khoảng một phút. Bạn phê duyệt trên nền tảng rồi quay lại đây."
-		},
-		"connected": {
-			"sharedNote": "Dùng chung cho mọi dự án và tác nhân chưa có danh tính riêng.",
-			"mention": "Nhắc trong bình luận:"
-		}
+		"copied": "Đã sao chép"
 	}
 }

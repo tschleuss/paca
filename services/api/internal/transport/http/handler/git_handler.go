@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -29,6 +30,7 @@ type GitService interface {
 	LinkRepository(ctx context.Context, in gitsvc.LinkInput) (*gitdom.Repository, error)
 	ListRepositories(ctx context.Context, projectID uuid.UUID) ([]*gitdom.Repository, error)
 	UnlinkRepository(ctx context.Context, projectID, repositoryID uuid.UUID) error
+	UpdateRepository(ctx context.Context, projectID, repositoryID uuid.UUID, description string) (*gitdom.Repository, error)
 	MintCredential(ctx context.Context, in gitsvc.MintInput) (gitprovider.Credential, error)
 	CheckWebhookEndpoint(ctx context.Context, key string) error
 	HandleWebhook(ctx context.Context, endpointKey string, d gitsvc.Delivery) (*gitsvc.WebhookResult, error)
@@ -37,8 +39,13 @@ type GitService interface {
 	ListIdentities(ctx context.Context) ([]*gitdom.Identity, error)
 	ListAgentIdentities(ctx context.Context, agentID uuid.UUID) ([]*gitdom.Identity, error)
 	BeginIdentitySetup(ctx context.Context, in gitsvc.SetupInput) (*gitprovider.SetupStep, error)
-	CompleteIdentitySetup(ctx context.Context, actorID uuid.UUID, state string, params map[string]string) (*gitsvc.SetupCompletion, error)
+	CompleteIdentitySetup(ctx context.Context, actorID uuid.UUID, projectID *uuid.UUID, state string, params map[string]string) (*gitsvc.SetupCompletion, error)
 	DeleteIdentity(ctx context.Context, id uuid.UUID) error
+	ReconnectRepository(ctx context.Context, in gitsvc.ReconnectInput) (*gitdom.Repository, error)
+	RegisterWebhook(ctx context.Context, projectID, repositoryID uuid.UUID) (*gitdom.Repository, error)
+	ListConnections(ctx context.Context, projectID uuid.UUID) ([]*gitdom.Identity, error)
+	ListAvailableRepositories(ctx context.Context, projectID, identityID uuid.UUID, query, cursor string) (*gitsvc.AvailableRepositories, error)
+	DeleteProjectConnection(ctx context.Context, projectID, id uuid.UUID) error
 	RemoveAgentIdentity(ctx context.Context, agentID uuid.UUID, providerID string) error
 
 	BeginAccessGrant(ctx context.Context, in gitsvc.AccessInput) (*gitprovider.SetupStep, error)
@@ -95,6 +102,16 @@ func providerError(err error) error {
 	return apierr.New(apierr.CodeInternalError, "git provider error")
 }
 
+// withProviderMessage attaches the provider's message (redacted, capped) as
+// details.provider_message, for a client to show under the fixed text. The
+// code and text are unchanged, and nothing is attached when it said nothing.
+func withProviderMessage(e *apierr.Error, err error) *apierr.Error {
+	if msg := gitsvc.ProviderMessage(err); msg != "" {
+		e.Details = map[string]string{"provider_message": msg}
+	}
+	return e
+}
+
 // providerDetail is a provider's explanation, capped, for the cases where the
 // caller can act on it.
 func providerDetail(pe *gitprovider.Error) string {
@@ -110,6 +127,25 @@ func providerDetail(pe *gitprovider.Error) string {
 
 func (h *GitHandler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	presenter.Error(w, r, providerError(err))
+}
+
+// failWithProviderMessage is fail for the settings page. Unlike the agent-facing
+// operations (which keep provider text out of transcripts), a person
+// configuring a connection needs to know why the platform refused, so its
+// message rides along as details.provider_message.
+func (h *GitHandler) failWithProviderMessage(w http.ResponseWriter, r *http.Request, err error) {
+	apiErr := providerError(err)
+	var pe *gitprovider.Error
+	// Every provider code carries its message (a validation or unsupported
+	// answer is exactly where the fixed text is wrong), except internal ones,
+	// which stay opaque.
+	if !errors.As(err, &pe) || pe.Code != gitprovider.CodeInternal {
+		var ae *apierr.Error
+		if errors.As(apiErr, &ae) {
+			apiErr = withProviderMessage(ae, err)
+		}
+	}
+	presenter.Error(w, r, apiErr)
 }
 
 // ListRepositories handles GET /projects/:projectId/git/repositories.
@@ -150,13 +186,36 @@ func (h *GitHandler) LinkRepository(w http.ResponseWriter, r *http.Request) {
 	}
 	repo, err := h.svc.LinkRepository(r.Context(), gitsvc.LinkInput{
 		ProjectID: projectID, ProviderID: strings.TrimSpace(req.ProviderID), Host: strings.TrimSpace(req.Host),
-		PathOrURL: strings.TrimSpace(req.PathOrURL), ActorID: &actor,
+		PathOrURL: strings.TrimSpace(req.PathOrURL), IdentityID: req.IdentityID, ActorID: &actor,
+		Description: req.Description,
 	})
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
 	presenter.Created(w, r, dto.GitRepositoryFromEntity(repo))
+}
+
+// UpdateRepository handles PATCH /projects/:projectId/git/repositories/:repositoryId.
+func (h *GitHandler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := gitProjectID(w, r)
+	if !ok {
+		return
+	}
+	repoID, ok := gitRepositoryID(w, r)
+	if !ok {
+		return
+	}
+	var req dto.UpdateGitRepositoryRequest
+	if !middleware.BindJSON(w, r, &req) {
+		return
+	}
+	repo, err := h.svc.UpdateRepository(r.Context(), projectID, repoID, req.Description)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	presenter.OK(w, r, dto.GitRepositoryFromEntity(repo))
 }
 
 // UnlinkRepository handles DELETE /projects/:projectId/git/repositories/:repositoryId.
@@ -174,6 +233,48 @@ func (h *GitHandler) UnlinkRepository(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	presenter.NoContent(w)
+}
+
+// ReconnectRepository handles POST /projects/:projectId/git/repositories/:repositoryId/reconnect:
+// point a repository whose connection was deleted at another connection.
+func (h *GitHandler) ReconnectRepository(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := gitProjectID(w, r)
+	if !ok {
+		return
+	}
+	repoID, ok := gitRepositoryID(w, r)
+	if !ok {
+		return
+	}
+	var req dto.ReconnectGitRepositoryRequest
+	if !middleware.BindJSON(w, r, &req) {
+		return
+	}
+	repo, err := h.svc.ReconnectRepository(r.Context(), gitsvc.ReconnectInput{ProjectID: projectID, RepositoryID: repoID, IdentityID: req.IdentityID})
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	presenter.OK(w, r, dto.GitRepositoryFromEntity(repo))
+}
+
+// RegisterWebhook handles POST /projects/:projectId/git/repositories/:repositoryId/webhook:
+// try again to register the repository's webhook on the platform.
+func (h *GitHandler) RegisterWebhook(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := gitProjectID(w, r)
+	if !ok {
+		return
+	}
+	repoID, ok := gitRepositoryID(w, r)
+	if !ok {
+		return
+	}
+	repo, err := h.svc.RegisterWebhook(r.Context(), projectID, repoID)
+	if err != nil {
+		h.failWithProviderMessage(w, r, err)
+		return
+	}
+	presenter.OK(w, r, dto.GitRepositoryFromEntity(repo))
 }
 
 // ReadCredential handles POST .../repositories/:repositoryId/credential/read.
@@ -315,7 +416,7 @@ func (h *GitHandler) DeleteIdentity(w http.ResponseWriter, r *http.Request) {
 	presenter.NoContent(w)
 }
 
-// BeginSetup handles POST /git/identities/setup: a shared identity for a host.
+// BeginSetup handles POST /git/identities/setup: a connection every project can use.
 func (h *GitHandler) BeginSetup(w http.ResponseWriter, r *http.Request) {
 	actor, ok := requireAccountID(w, r)
 	if !ok {
@@ -360,8 +461,105 @@ func (h *GitHandler) begin(w http.ResponseWriter, r *http.Request, in gitsvc.Set
 	presenter.Created(w, r, dto.GitSetupStepFromProvider(step))
 }
 
+// ListConnections handles GET /projects/:projectId/git/connections: the
+// workspace's connections and the project's own.
+func (h *GitHandler) ListConnections(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := gitProjectID(w, r)
+	if !ok {
+		return
+	}
+	ids, err := h.svc.ListConnections(r.Context(), projectID)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	presenter.OK(w, r, identitiesResponse(ids))
+}
+
+// Upper bound on the picker's search text, which is forwarded to the platform.
+// The cursor is opaque and provider-issued, so it is not capped.
+const maxRepositorySearchLen = 200
+
+// ListAvailableRepositories handles GET /projects/:projectId/git/connections/:identityId/repositories:
+// the repositories a connection sees on the platform, for the link form's
+// picker. ?q= filters by name and ?cursor= continues a previous page.
+func (h *GitHandler) ListAvailableRepositories(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := gitProjectID(w, r)
+	if !ok {
+		return
+	}
+	identityID, err := uuid.Parse(chi.URLParam(r, "identityId"))
+	if err != nil {
+		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid connection ID"))
+		return
+	}
+	q := r.URL.Query()
+	query := strings.TrimSpace(q.Get("q"))
+	// Characters, not bytes: the web input caps the search at 200 characters.
+	if utf8.RuneCountInString(query) > maxRepositorySearchLen {
+		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "search is too long"))
+		return
+	}
+	page, err := h.svc.ListAvailableRepositories(r.Context(), projectID, identityID, query, q.Get("cursor"))
+	if err != nil {
+		h.failWithProviderMessage(w, r, err)
+		return
+	}
+	presenter.OK(w, r, dto.AvailableGitRepositoriesFromPage(page.Items, page.NextCursor, page.Supported))
+}
+
+// BeginProjectSetup handles POST /projects/:projectId/git/connections/setup: a
+// connection only this project can use.
+func (h *GitHandler) BeginProjectSetup(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := gitProjectID(w, r)
+	if !ok {
+		return
+	}
+	actor, ok := requireAccountID(w, r)
+	if !ok {
+		return
+	}
+	var req dto.BeginGitSetupRequest
+	if !middleware.BindJSON(w, r, &req) {
+		return
+	}
+	h.begin(w, r, gitsvc.SetupInput{ProviderID: strings.TrimSpace(req.ProviderID), Host: strings.TrimSpace(req.Host), Scope: gitdom.ScopeProject,
+		ProjectID: &projectID, ActorID: actor, ReturnURL: strings.TrimSpace(req.ReturnURL), Params: req.Params})
+}
+
+// CompleteProjectSetup handles POST /projects/:projectId/git/connections/setup/complete.
+func (h *GitHandler) CompleteProjectSetup(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := gitProjectID(w, r)
+	if !ok {
+		return
+	}
+	h.completeSetup(w, r, &projectID)
+}
+
+// DeleteProjectConnection handles DELETE /projects/:projectId/git/connections/:identityId.
+func (h *GitHandler) DeleteProjectConnection(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := gitProjectID(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "identityId"))
+	if err != nil {
+		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid connection ID"))
+		return
+	}
+	if err := h.svc.DeleteProjectConnection(r.Context(), projectID, id); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	presenter.NoContent(w)
+}
+
 // CompleteSetup handles POST /git/identities/setup/complete.
 func (h *GitHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
+	h.completeSetup(w, r, nil)
+}
+
+func (h *GitHandler) completeSetup(w http.ResponseWriter, r *http.Request, projectID *uuid.UUID) {
 	actor, ok := requireAccountID(w, r)
 	if !ok {
 		return
@@ -374,7 +572,7 @@ func (h *GitHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "state is required"))
 		return
 	}
-	res, err := h.svc.CompleteIdentitySetup(r.Context(), actor, strings.TrimSpace(req.State), req.Params)
+	res, err := h.svc.CompleteIdentitySetup(r.Context(), actor, projectID, strings.TrimSpace(req.State), req.Params)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -465,7 +663,7 @@ func (h *GitHandler) BeginAccess(w http.ResponseWriter, r *http.Request) {
 	}
 	step, err := h.svc.BeginAccessGrant(r.Context(), gitsvc.AccessInput{
 		ProjectID: projectID, ProviderID: strings.TrimSpace(req.ProviderID), Host: strings.TrimSpace(req.Host),
-		Owner: strings.TrimSpace(req.Owner), ActorID: actor, ReturnURL: strings.TrimSpace(req.ReturnURL),
+		Owner: strings.TrimSpace(req.Owner), IdentityID: req.IdentityID, ActorID: actor, ReturnURL: strings.TrimSpace(req.ReturnURL),
 	})
 	if err != nil {
 		h.fail(w, r, err)

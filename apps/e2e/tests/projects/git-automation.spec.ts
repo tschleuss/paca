@@ -49,6 +49,19 @@ const LINKED = {
 	created_at: "2026-10-01T00:00:00Z",
 };
 
+const CONNECTION = {
+	id: "00000000-0000-4000-8000-0000000000c1",
+	provider_id: PROVIDER.id,
+	host: "git.example.test",
+	kind: "app",
+	scope: "shared",
+	project_id: null,
+	handle: "paca-bot",
+	display_name: "Paca",
+	expires_at: null,
+	created_at: "2026-10-01T00:00:00Z",
+};
+
 const ok = (data: unknown) => ({
 	status: 200,
 	contentType: "application/json",
@@ -70,6 +83,9 @@ interface Stub {
 async function stubGit(page: Page, projectId: string, stub: Stub) {
 	await page.route(`**/api/v1/projects/${projectId}/git/providers`, (route) =>
 		route.fulfill(ok([PROVIDER])),
+	);
+	await page.route(`**/api/v1/projects/${projectId}/git/connections`, (route) =>
+		route.fulfill(ok([CONNECTION])),
 	);
 	await page.route(
 		`**/api/v1/projects/${projectId}/git/repositories`,
@@ -103,6 +119,13 @@ const open = async (page: Page, projectId: string) => {
 	await page.goto(`${BASE_URL}/projects/${projectId}/settings#git`);
 	await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 };
+
+/** Automation lives on its own tab; the page opens on Repositories. */
+const repositoriesPanel = (page: Page) =>
+	page.getByRole("tabpanel", { name: /^Repositories/ });
+
+const openAutomation = (page: Page) =>
+	page.getByRole("tab", { name: /^Automation/ }).click();
 
 test.describe("Project Git automation", () => {
 	let projectId: string;
@@ -145,10 +168,10 @@ test.describe("Project Git automation", () => {
 			});
 			await open(page, projectId);
 
-			await expect(page.getByText("acme/web", { exact: true })).toBeVisible();
-			await expect(page.getByText("main", { exact: true })).toBeVisible();
-			await expect(page.getByText("@paca-bot").first()).toBeVisible();
-			await expect(page.getByText("Using it")).toBeVisible();
+			await expect(repositoriesPanel(page).getByText("acme/web", { exact: true })).toBeVisible();
+			await expect(repositoriesPanel(page).getByText("main", { exact: true })).toBeVisible();
+			await expect(repositoriesPanel(page).getByText("@paca-bot").first()).toBeVisible();
+			await expect(page.getByRole("tab", { name: /^Using it/ })).toBeVisible();
 		});
 
 		test("Unlinking asks for confirmation", async ({ page }) => {
@@ -162,7 +185,7 @@ test.describe("Project Git automation", () => {
 				page.getByRole("button", { name: "Confirm unlink" }),
 			).toBeVisible();
 			await page.getByRole("button", { name: "Cancel" }).click();
-			await expect(page.getByText("acme/web", { exact: true })).toBeVisible();
+			await expect(repositoriesPanel(page).getByText("acme/web", { exact: true })).toBeVisible();
 			expect(stub.deleted).toEqual([]);
 
 			await page.getByRole("button", { name: "Unlink" }).click();
@@ -173,7 +196,7 @@ test.describe("Project Git automation", () => {
 
 		const errors: Array<[number, string, RegExp]> = [
 			[409, "GIT_ALREADY_LINKED", /already linked to the project/i],
-			[409, "GIT_NO_IDENTITY", /No shared Git identity is set up/i],
+			[409, "GIT_NO_IDENTITY", /No connection is available for this platform/i],
 			[503, "GIT_PROVIDER_UNAVAILABLE", /provider plugin is unavailable/i],
 			[404, "GIT_NOT_FOUND", /Not found/i],
 		];
@@ -223,6 +246,7 @@ test.describe("Project Git automation", () => {
 			await signIn(page);
 			await stubGit(page, projectId, { repositories: [], deleted: [] });
 			await open(page, projectId);
+			await openAutomation(page);
 
 			await expect(page.getByText("Link a repository first.")).toBeVisible();
 			await expect(page.getByLabel("Default responder")).toBeDisabled();
@@ -233,6 +257,7 @@ test.describe("Project Git automation", () => {
 			await signIn(page);
 			await stubGit(page, projectId, { repositories: [LINKED], deleted: [] });
 			await open(page, projectId);
+			await openAutomation(page);
 
 			await expect(
 				page.getByText("mentions that name no agent are ignored"),
@@ -246,6 +271,7 @@ test.describe("Project Git automation", () => {
 			await signIn(page);
 			await stubGit(page, projectId, { repositories: [LINKED], deleted: [] });
 			await open(page, projectId);
+			await openAutomation(page);
 
 			await page
 				.getByLabel("Default responder")
@@ -267,6 +293,7 @@ test.describe("Project Git automation", () => {
 			await signIn(page);
 			await stubGit(page, projectId, { repositories: [LINKED], deleted: [] });
 			await open(page, projectId);
+			await openAutomation(page);
 
 			await page.getByText("Advanced", { exact: true }).click();
 			await page
@@ -283,6 +310,7 @@ test.describe("Project Git automation", () => {
 			});
 
 			await page.reload();
+			await openAutomation(page);
 			await page.getByText("Advanced", { exact: true }).click();
 			await expect(
 				page.getByLabel("Minimum access to start an agent"),
@@ -296,6 +324,7 @@ test.describe("Project Git automation", () => {
 			await signIn(page);
 			await stubGit(page, projectId, { repositories: [LINKED], deleted: [] });
 			await open(page, projectId);
+			await openAutomation(page);
 
 			const save = page.getByRole("button", { name: "Save" });
 			await expect(save).toBeDisabled();
@@ -323,6 +352,7 @@ test.describe("Project Git automation", () => {
 			await signIn(page, reader.username, RESTRICTED_PASSWORD);
 			await stubGit(page, projectId, { repositories: [LINKED], deleted: [] });
 			await open(page, projectId);
+			await openAutomation(page);
 
 			await expect(page.getByLabel("Default responder")).toBeDisabled();
 			await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);

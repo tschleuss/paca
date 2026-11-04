@@ -17,6 +17,34 @@ const (
 	// CodeUnauthenticated represents an unauthenticated request.
 	CodeUnauthenticated Code = "AUTH_UNAUTHENTICATED"
 
+	// CodeMFARequired means the account has MFA enabled and the login carried
+	// no second factor; retry with "otp" set.
+	CodeMFARequired Code = "AUTH_MFA_REQUIRED"
+	// CodeMFAInvalidCode means the TOTP or recovery code was wrong or reused.
+	CodeMFAInvalidCode Code = "AUTH_MFA_INVALID_CODE"
+	// CodeMFASetupRequired means policy requires MFA for this account and it
+	// has not enrolled; it must enroll before it can sign in.
+	CodeMFASetupRequired Code = "AUTH_MFA_SETUP_REQUIRED"
+	// CodeIPNotAllowed means the login came from outside an IP allow-list.
+	CodeIPNotAllowed Code = "AUTH_IP_NOT_ALLOWED"
+	// CodeMFAAlreadyEnabled means enrollment was started on an enrolled account.
+	CodeMFAAlreadyEnabled Code = "MFA_ALREADY_ENABLED"
+	// CodeMFANotEnabled means the operation needs MFA to be enabled.
+	CodeMFANotEnabled Code = "MFA_NOT_ENABLED"
+	// CodeMFAUnavailable means the server cannot store TOTP secrets
+	// (ENCRYPTION_KEY unset).
+	CodeMFAUnavailable Code = "MFA_UNAVAILABLE"
+	// CodePasskeyInvalid means a passkey registration did not verify.
+	CodePasskeyInvalid Code = "PASSKEY_INVALID"
+	// CodePasskeyLimit means the account already has the most passkeys allowed.
+	CodePasskeyLimit Code = "PASSKEY_LIMIT"
+	// CodePasskeyNotFound means the account has no passkey with that id.
+	CodePasskeyNotFound Code = "PASSKEY_NOT_FOUND"
+	// CodeInvalidCIDR means an allow-list entry is not an IP or CIDR.
+	CodeInvalidCIDR Code = "INVALID_CIDR"
+	// CodeSelfLockout means the saved allow-list would exclude the admin saving it.
+	CodeSelfLockout Code = "SELF_LOCKOUT"
+
 	// CodeServiceAccountNotFound represents a service account that was not found.
 	CodeServiceAccountNotFound Code = "SERVICE_ACCOUNT_NOT_FOUND"
 	// CodeServiceAccountNameInvalid indicates a service account name is empty or too long.
@@ -394,15 +422,21 @@ const (
 	CodeGitNoIdentity Code = "GIT_NO_IDENTITY"
 	// CodeGitProviderUnavailable indicates the provider plugin is not installed, enabled or answering.
 	CodeGitProviderUnavailable Code = "GIT_PROVIDER_UNAVAILABLE"
+	// CodeGitRepositoryNotVisible indicates none of the connections offered can see the repository.
+	CodeGitRepositoryNotVisible Code = "GIT_REPOSITORY_NOT_VISIBLE"
 	// CodeGitAccessNotGranted indicates the identity cannot see the repository because it has not been
 	// granted access to the repository's owner (for example the GitHub App is not installed there).
 	CodeGitAccessNotGranted Code = "GIT_ACCESS_NOT_GRANTED"
-	// CodeGitIdentityExists indicates the host already has a shared identity, or the agent already has its own.
+	// CodeGitIdentityExists indicates the agent already has its own identity for the provider.
 	CodeGitIdentityExists Code = "GIT_IDENTITY_EXISTS"
+	// CodeGitIdentityRequired indicates several connections could serve the request and the caller must choose one.
+	CodeGitIdentityRequired Code = "GIT_IDENTITY_REQUIRED"
 	// CodeGitSetupInvalid indicates the identity-setup state is unknown, expired, already used or someone else's.
 	CodeGitSetupInvalid Code = "GIT_SETUP_INVALID"
 	// CodeGitPublicURLRequired indicates PUBLIC_URL is not configured, so webhook and redirect URLs cannot be built.
 	CodeGitPublicURLRequired Code = "GIT_PUBLIC_URL_REQUIRED"
+	// CodeGitDescriptionTooLong indicates a repository description is longer than allowed.
+	CodeGitDescriptionTooLong Code = "GIT_DESCRIPTION_TOO_LONG"
 	// CodeGitProviderRejected indicates the platform refused the request (the identity lacks access, a conflict).
 	CodeGitProviderRejected Code = "GIT_PROVIDER_REJECTED"
 

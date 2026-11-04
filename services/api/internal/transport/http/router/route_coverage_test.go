@@ -84,6 +84,7 @@ func coverageDeps(iamAuth *iam.Authorizer) Deps {
 		Automation:          handler.NewAutomationHandler(nil),
 		Settings:            handler.NewSettingsHandler(nil),
 		SSO:                 handler.NewSSOHandler(nil, nil, ""),
+		MFA:                 handler.NewMFAHandler(nil, nil),
 		Log:                 log,
 	}
 }
@@ -134,6 +135,34 @@ var ssoOpenRoutes = []string{
 	"GET /api/v1/auth/sso/{slug}/callback",
 }
 
+// mfaOpenRoutes extends openRouteGroups with the MFA routes registered only
+// when Deps.MFA is set (coverageDeps sets it; the admin login-security routes
+// carry a gate and so are covered there).
+var mfaOpenRoutes = []string{
+	// Pre-login enrollment: the account's password is the credential, since
+	// policy can require MFA before the account is able to sign in.
+	"POST /api/v1/auth/mfa/setup",
+	"POST /api/v1/auth/mfa/setup/confirm",
+	"POST /api/v1/auth/mfa/setup/passkey/options",
+	"POST /api/v1/auth/mfa/setup/passkey/finish",
+	// Self-service on the caller's own account, like the other /users/me routes.
+	"GET /api/v1/users/me/mfa",
+	"POST /api/v1/users/me/mfa/enroll",
+	"POST /api/v1/users/me/mfa/confirm",
+	"POST /api/v1/users/me/mfa/disable",
+	"POST /api/v1/users/me/mfa/recovery-codes",
+	// Passkey login, the twin of POST /auth/mfa/verify: the request carries
+	// the login challenge token and the authenticator's signed assertion.
+	"POST /api/v1/auth/mfa/passkey/options",
+	"POST /api/v1/auth/mfa/passkey/verify",
+	// Passkey self-service on the caller's own account, like /users/me/mfa.
+	"GET /api/v1/users/me/passkeys",
+	"POST /api/v1/users/me/passkeys/register/options",
+	"POST /api/v1/users/me/passkeys/register/finish",
+	"POST /api/v1/users/me/passkeys/verify/options",
+	"DELETE /api/v1/users/me/passkeys/{passkeyId}",
+}
+
 // gatesOf returns the guards gates among a route's middlewares.
 func gatesOf(mws []func(http.Handler) http.Handler) []gateHandler {
 	stub := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
@@ -178,6 +207,9 @@ func openRoutes() map[string]bool {
 		}
 	}
 	for _, r := range ssoOpenRoutes {
+		open[r] = true
+	}
+	for _, r := range mfaOpenRoutes {
 		open[r] = true
 	}
 	return open
@@ -582,6 +614,40 @@ func TestRouteCoverage_RoleHelpersAreAuthenticatedOnly(t *testing.T) {
 	}
 }
 
+func TestRouteCoverage_IssueListRequiresGitRead(t *testing.T) {
+	token := issueAccessTokenForRouterTests(t)
+	pid := uuid.NewString()
+	key := "GET /api/v1/projects/{projectId}/git/repositories/{repositoryId}/issues"
+	call := func(grants []iam.Grant, authenticated bool) int {
+		for _, rt := range walkGates(t, coverageDeps(newTestIAM(&iamUserStore{grants: grants}))) {
+			if rt.key() != key {
+				continue
+			}
+			req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/projects/"+pid+"/git/repositories/"+uuid.NewString()+"/issues", nil)
+			if authenticated {
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			rec := httptest.NewRecorder()
+			rt.handler.ServeHTTP(rec, req)
+			return rec.Code
+		}
+		t.Fatal("issue list route not registered")
+		return 0
+	}
+	if got := call(nil, false); got != http.StatusUnauthorized {
+		t.Fatalf("anonymous: %d", got)
+	}
+	if got := call(nil, true); got != http.StatusForbidden {
+		t.Fatalf("no permission: %d", got)
+	}
+	if got := call([]iam.Grant{projectRole(pid, allow([]string{"git:read"}, "project/"+pid+"/*"))}, true); got != http.StatusNoContent {
+		t.Fatalf("git:read: %d", got)
+	}
+	if got := call([]iam.Grant{projectRole(pid, allow([]string{"git:write"}, "project/"+pid+"/*"))}, true); got != http.StatusForbidden {
+		t.Fatalf("git:write only: %d", got)
+	}
+}
+
 // The project mirror of the role editor helpers: each is gated on
 // roles:read on project/{projectId} (pinned individually), and the simulation
 // additionally goes through the principal guard (not a marked gate, so it is
@@ -837,5 +903,41 @@ func TestRouteCoverage_ViewAttrGates(t *testing.T) {
 		if !seen[k] {
 			t.Errorf("%q is not a registered route", k)
 		}
+	}
+}
+
+// The repository picker lists what a credential can see on the platform, so it
+// needs git:write like linking does; git:read alone must not reach it.
+func TestRouteCoverage_RepositoryPickerRequiresGitWrite(t *testing.T) {
+	token := issueAccessTokenForRouterTests(t)
+	pid := uuid.NewString()
+	key := "GET /api/v1/projects/{projectId}/git/connections/{identityId}/repositories"
+	call := func(grants []iam.Grant, authenticated bool) int {
+		for _, rt := range walkGates(t, coverageDeps(newTestIAM(&iamUserStore{grants: grants}))) {
+			if rt.key() != key {
+				continue
+			}
+			req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/projects/"+pid+"/git/connections/"+uuid.NewString()+"/repositories", nil)
+			if authenticated {
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			rec := httptest.NewRecorder()
+			rt.handler.ServeHTTP(rec, req)
+			return rec.Code
+		}
+		t.Fatal("repository picker route not registered")
+		return 0
+	}
+	if got := call(nil, false); got != http.StatusUnauthorized {
+		t.Fatalf("anonymous: %d", got)
+	}
+	if got := call(nil, true); got != http.StatusForbidden {
+		t.Fatalf("no permission: %d", got)
+	}
+	if got := call([]iam.Grant{projectRole(pid, allow([]string{"git:read"}, "project/"+pid+"/*"))}, true); got != http.StatusForbidden {
+		t.Fatalf("git:read only: %d", got)
+	}
+	if got := call([]iam.Grant{projectRole(pid, allow([]string{"git:write"}, "project/"+pid+"/*"))}, true); got != http.StatusNoContent {
+		t.Fatalf("git:write: %d", got)
 	}
 }

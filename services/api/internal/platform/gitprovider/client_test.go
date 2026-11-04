@@ -21,6 +21,26 @@ func (f *fakeDoer) Do(_ context.Context, plugin, method, path string, body []byt
 	return f.status, []byte(f.resp), f.err
 }
 
+func TestClient_ListIssues(t *testing.T) {
+	d := &fakeDoer{status: 200, resp: `{"ok":true,"result":{"items":[{"number":"7","title":"A","state":"open","author":"x","url":"u"}],"next_cursor":"next"}}`}
+	c := NewClient(d, "p")
+	page, err := c.ListIssues(context.Background(), ListIssuesRequest{Target: Target{Identity: IdentityRef{ID: "i"}, Repo: RepoRef{FullPath: "a/b"}}, State: "closed", Cursor: "a+b"})
+	if err != nil || len(page.Items) != 1 || page.Items[0].Number != "7" || page.NextCursor != "next" {
+		t.Fatalf("page=%+v err=%v", page, err)
+	}
+	if d.gotURL != "p POST /_git/list_issues" {
+		t.Fatalf("called %q", d.gotURL)
+	}
+	var sent ListIssuesRequest
+	if json.Unmarshal(d.gotReq, &sent) != nil || sent.State != "closed" || sent.Cursor != "a+b" || sent.Target.Identity.ID != "i" || sent.Target.Repo.FullPath != "a/b" {
+		t.Fatalf("bad request: %+v", sent)
+	}
+	d.status, d.resp = 422, `{"ok":false,"error":{"code":"unsupported","message":"unsupported"}}`
+	if _, err := c.ListIssues(context.Background(), ListIssuesRequest{}); !IsCode(err, CodeUnsupported) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
 func TestClient_CallsTheOperationRoute(t *testing.T) {
 	d := &fakeDoer{status: 200, resp: `{"ok":true,"result":{"username":"x","secret":"s"}}`}
 	c := NewClient(d, "com.paca.github")
@@ -120,5 +140,25 @@ func TestClient_AccessGrantOperations(t *testing.T) {
 	d.status, d.resp = 422, `{"ok":false,"error":{"code":"unsupported","message":"no access grants"}}`
 	if _, err := c.BeginAccessGrant(context.Background(), BeginAccessRequest{}); !IsCode(err, CodeUnsupported) {
 		t.Errorf("a provider without grants answers unsupported: %v", err)
+	}
+}
+
+func TestClient_DescribeIdentity(t *testing.T) {
+	d := &fakeDoer{status: 200, resp: `{"ok":true,"result":{"ref":{"id":"i1","handle":"bot"},"display_name":"Bot"}}`}
+	c := NewClient(d, "com.paca.gitlab")
+	id, err := c.DescribeIdentity(context.Background(), DescribeIdentityRequest{Identity: IdentityRef{ID: "i1"}})
+	if err != nil || id.Ref.ID != "i1" || id.Ref.Handle != "bot" || id.DisplayName != "Bot" {
+		t.Fatalf("describe: %+v %v", id, err)
+	}
+	if d.gotURL != "com.paca.gitlab POST /_git/describe_identity" {
+		t.Errorf("called %q", d.gotURL)
+	}
+	var sent DescribeIdentityRequest
+	if json.Unmarshal(d.gotReq, &sent) != nil || sent.Identity.ID != "i1" {
+		t.Errorf("request body %s", d.gotReq)
+	}
+	d.status, d.resp = 404, `{"ok":false,"error":{"code":"not_found","message":"gone"}}`
+	if _, err := c.DescribeIdentity(context.Background(), DescribeIdentityRequest{}); !IsCode(err, CodeNotFound) {
+		t.Errorf("unknown identity is not_found: %v", err)
 	}
 }

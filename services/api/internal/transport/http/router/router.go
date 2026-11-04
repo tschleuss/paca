@@ -57,12 +57,14 @@ type Deps struct {
 	SessionEnvironments httpmw.SessionEnvironmentLookup
 	Environment         *handler.EnvironmentHandler
 	// Git serves the linked-repository, credential and webhook endpoints; optional.
-	Git             *handler.GitHandler
-	Annotation      *handler.AnnotationHandler
-	Conversation    *handler.ConversationHandler
-	Automation      *handler.AutomationHandler
-	Settings        *handler.SettingsHandler
-	SSO             *handler.SSOHandler
+	Git          *handler.GitHandler
+	Annotation   *handler.AnnotationHandler
+	Conversation *handler.ConversationHandler
+	Automation   *handler.AutomationHandler
+	Settings     *handler.SettingsHandler
+	SSO          *handler.SSOHandler
+	// MFA serves TOTP enrollment and the admin login-security endpoints; optional.
+	MFA             *handler.MFAHandler
 	ProjectActivity *handler.ProjectActivityHandler
 	ProjectExport   *handler.ProjectExportHandler
 	Log             *slog.Logger
@@ -133,9 +135,20 @@ func New(deps Deps) http.Handler {
 			}
 			r.Route("/auth", func(r chi.Router) {
 				r.With(authLimit(deps.AuthRateLimit)).Post("/login", deps.Auth.Login)
+				r.With(authLimit(deps.AuthRateLimit)).Post("/mfa/verify", deps.Auth.VerifyMFA)
 				r.With(authLimit(3*deps.AuthRateLimit)).Post("/refresh", deps.Auth.Refresh)
 				r.With(authLimit(3*deps.AuthRateLimit)).Post("/annotation-refresh", deps.Auth.AnnotationRefresh)
 				r.With(httpmw.Authn(deps.TokenManager)).Post("/logout", deps.Auth.Logout)
+				if deps.MFA != nil {
+					// Enrollment for an account that policy requires to use MFA
+					// but that cannot sign in until it has; password-authenticated.
+					r.With(authLimit(deps.AuthRateLimit)).Post("/mfa/passkey/options", deps.Auth.PasskeyOptions)
+					r.With(authLimit(deps.AuthRateLimit)).Post("/mfa/passkey/verify", deps.Auth.PasskeyVerify)
+					r.With(authLimit(deps.AuthRateLimit)).Post("/mfa/setup", deps.MFA.SetupBegin)
+					r.With(authLimit(deps.AuthRateLimit)).Post("/mfa/setup/confirm", deps.MFA.SetupConfirm)
+					r.With(authLimit(deps.AuthRateLimit)).Post("/mfa/setup/passkey/options", deps.MFA.SetupPasskeyBegin)
+					r.With(authLimit(deps.AuthRateLimit)).Post("/mfa/setup/passkey/finish", deps.MFA.SetupPasskeyFinish)
+				}
 				// Public — the link a password-set-token email points to;
 				// the token itself (not a session) proves the caller's right
 				// to act on the account.
@@ -166,6 +179,21 @@ func New(deps Deps) http.Handler {
 					r.Get("/me", deps.User.GetMe)
 					r.Patch("/me", deps.User.UpdateMe)
 					r.Get("/me/global-permissions", deps.User.GetMyGlobalPermissions)
+					if deps.MFA != nil {
+						r.Group(func(r chi.Router) {
+							r.Use(httpmw.RequireJWTAuth())
+							r.Get("/me/mfa", deps.MFA.Status)
+							r.Post("/me/mfa/enroll", deps.MFA.Begin)
+							r.Post("/me/mfa/confirm", deps.MFA.Confirm)
+							r.Post("/me/mfa/disable", deps.MFA.Disable)
+							r.Post("/me/mfa/recovery-codes", deps.MFA.RegenerateRecoveryCodes)
+							r.Get("/me/passkeys", deps.MFA.ListPasskeys)
+							r.Post("/me/passkeys/register/options", deps.MFA.BeginPasskeyRegistration)
+							r.Post("/me/passkeys/register/finish", deps.MFA.FinishPasskeyRegistration)
+							r.Post("/me/passkeys/verify/options", deps.MFA.BeginPasskeyVerification)
+							r.Delete("/me/passkeys/{passkeyId}", deps.MFA.DeletePasskey)
+						})
+					}
 					r.Post("/me/avatar/initiate-upload", deps.User.InitiateAvatarUpload)
 					r.Post("/me/avatar/complete-upload", deps.User.CompleteAvatarUpload)
 					r.Delete("/me/avatar", deps.User.DeleteAvatar)
@@ -320,6 +348,18 @@ func New(deps Deps) http.Handler {
 					r.With(write).Delete("/settings/favicon/avatar", deps.Settings.DeleteFavicon)
 				}
 
+				// Login security: MFA requirement, IP allow-lists, and resetting
+				// an account's MFA. Root-equivalent — see
+				// iam.ActionSettingsSecurityWrite.
+				if deps.MFA != nil {
+					sec := require.Global(iam.ActionSettingsSecurityWrite)
+					r.With(sec).Get("/auth-security", deps.MFA.GetPolicy)
+					r.With(sec).Put("/auth-security", deps.MFA.PutPolicy)
+					r.With(sec).Get("/users/{userId}/allowed-cidrs", deps.MFA.GetUserCIDRs)
+					r.With(sec).Put("/users/{userId}/allowed-cidrs", deps.MFA.PutUserCIDRs)
+					r.With(sec).Delete("/users/{userId}/mfa", deps.MFA.ResetUserMFA)
+				}
+
 				// SSO / OIDC identity providers. A separate permission from
 				// settings:write — see iam.ActionSettingsSSOWrite for
 				// why it is root-equivalent. Reads are gated by it too: the
@@ -461,6 +501,20 @@ func New(deps Deps) http.Handler {
 				// declares exactly the action it needs).
 				if deps.Git != nil {
 					r.With(require.Project(iam.ActionGitRead)).Get("/git/providers", deps.Git.ListProviders)
+					// Connections: the credentials (GitHub Apps, access tokens) the
+					// project links repositories through. Listing shows the workspace's
+					// and the project's own. Creating or deleting a project's own
+					// needs git:write and the project-level git.connections:manage;
+					// workspace-wide ones are managed under /git/identities with the
+					// workspace-level git.identities:manage.
+					r.With(require.Project(iam.ActionGitRead)).Get("/git/connections", deps.Git.ListConnections)
+					r.With(require.Project(iam.ActionGitWrite), require.Project(iam.ActionGitConnectionsManage)).Post("/git/connections/setup", deps.Git.BeginProjectSetup)
+					r.With(require.Project(iam.ActionGitWrite), require.Project(iam.ActionGitConnectionsManage)).Post("/git/connections/setup/complete", deps.Git.CompleteProjectSetup)
+					r.With(require.Project(iam.ActionGitWrite), require.Project(iam.ActionGitConnectionsManage)).Delete("/git/connections/{identityId}", deps.Git.DeleteProjectConnection)
+					// The repositories a connection sees on the platform, for the
+					// link form's picker. It asks the platform with the connection's
+					// credential, so it is as gated as linking: git:write.
+					r.With(require.Project(iam.ActionGitWrite)).Get("/git/connections/{identityId}/repositories", deps.Git.ListAvailableRepositories)
 					// Granting the shared identity access to the owner of a
 					// repository this project wants to link (GitHub: installing
 					// the App there). The platform decides who may grant; here it
@@ -474,11 +528,13 @@ func New(deps Deps) http.Handler {
 					r.With(require.Project(iam.ActionGitRead)).Get("/git/runs", deps.Git.ListProjectRuns)
 					r.Route("/git/repositories", func(r chi.Router) {
 						r.With(require.Project(iam.ActionGitRead)).Get("/", deps.Git.ListRepositories)
-						// Linking makes a repository the shared identity can see usable by
-						// this project, so it also needs the workspace-level action that
-						// governs the identity itself; git:write alone must not reach
-						// repositories another project's installation exposed.
-						r.With(require.Project(iam.ActionGitWrite), require.Global(iam.ActionGitIdentitiesManage)).Post("/", deps.Git.LinkRepository)
+						// Linking goes through a connection the project can use: a
+						// workspace-wide one was made available to every project by
+						// whoever holds git.identities:manage, a project's own is its
+						// own. git:write is therefore enough.
+						r.With(require.Project(iam.ActionGitWrite)).Post("/", deps.Git.LinkRepository)
+						r.With(require.Project(iam.ActionGitWrite)).Post("/{repositoryId}/webhook", deps.Git.RegisterWebhook)
+						r.With(require.Project(iam.ActionGitWrite)).Post("/{repositoryId}/reconnect", deps.Git.ReconnectRepository)
 						r.With(require.Project(iam.ActionGitRead)).Post("/{repositoryId}/credential/read", deps.Git.ReadCredential)
 						r.With(require.Project(iam.ActionGitWrite)).Post("/{repositoryId}/credential/write", deps.Git.WriteCredential)
 
@@ -494,11 +550,13 @@ func New(deps Deps) http.Handler {
 							// routes above: mounting this router at "/{repositoryId}" would
 							// replace a Delete registered on the same pattern.
 							r.With(write).Delete("/", deps.Git.UnlinkRepository)
+							r.With(write).Patch("/", deps.Git.UpdateRepository)
 							r.With(read).Get("/change-requests/{number}", deps.Git.GetChangeRequest)
 							r.With(read).Get("/change-requests/{number}/files", deps.Git.ListChangedFiles)
 							r.With(read).Get("/change-requests/{number}/diff", deps.Git.GetDiff)
 							r.With(read).Get("/change-requests/{number}/threads", deps.Git.ListThreads)
 							r.With(read).Get("/subjects/{kind}/{number}/comments", deps.Git.ListComments)
+							r.With(read).Get("/issues", deps.Git.ListIssues)
 							r.With(read).Get("/issues/{number}", deps.Git.GetIssue)
 							r.With(read).Get("/checks", deps.Git.GetChecks)
 							r.With(read).Get("/checks/{checkId}/logs", deps.Git.GetCheckLogs)
@@ -695,6 +753,7 @@ func New(deps Deps) http.Handler {
 				r.Route("/tasks", func(r chi.Router) {
 					r.With(require.Project(iam.ActionTasksRead)).Get("/", deps.Task.ListTasks)
 					r.With(require.Project(iam.ActionTasksRead)).Get("/count", deps.Task.CountTasks)
+					r.With(require.Project(iam.ActionTasksRead)).Get("/columns", deps.Task.ListTaskColumns)
 					r.With(require.Project(iam.ActionTasksWrite), require.TaskCreate()).Post("/", deps.Task.CreateTask)
 					r.With(require.TaskByNumber(iam.ActionTasksRead)).Get("/by-number/{taskNumber}", deps.Task.GetTaskByNumber)
 					r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{taskId}", deps.Task.GetTask)

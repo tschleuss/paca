@@ -21,7 +21,6 @@
 		"globalRoles": "Roles globales",
 		"users": "Usuarios",
 		"plugins": "Plugins",
-		"git": "Git",
 		"allProjects": "Todos los proyectos",
 		"project": "Proyecto",
 		"agents": "Agentes",
@@ -85,7 +84,7 @@
 	},
 	"userMenu": {
 		"signIn": "Iniciar sesión",
-		"myProfile": "Mi perfil",
+		"myProfile": "Cuenta",
 		"apiKeys": "Claves de API",
 		"logOut": "Cerrar sesión",
 		"loggingOut": "Cerrando sesión…"

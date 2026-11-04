@@ -36,7 +36,8 @@
 			"changeRoleAction": "Changer le rôle",
 			"deleteAction": "Supprimer l'utilisateur",
 			"pwdResetHint": "Cet utilisateur doit définir un nouveau mot de passe à sa prochaine connexion",
-			"columnActions": "Actions"
+			"columnActions": "Actions",
+			"securityAction": "Sécurité"
 		},
 		"formDialog": {
 			"createdTitle": "Utilisateur créé",
@@ -142,6 +143,24 @@
 			"title": "Aucun utilisateur ne correspond",
 			"description": "Essayez une autre recherche ou un autre filtre de rôle.",
 			"clear": "Effacer les filtres"
+		},
+		"security": {
+			"title": "Protections de connexion de {{name}}",
+			"description": "Contrôlez d'où cette personne peut se connecter et réinitialisez sa validation en deux étapes.",
+			"ip": {
+				"label": "Adresses IP autorisées",
+				"hint": "Une adresse IP ou plage CIDR par ligne. Laissez vide pour autoriser toute adresse. S'applique à la connexion par mot de passe."
+			},
+			"mfa": {
+				"title": "Validation en deux étapes",
+				"description": "Si la personne a perdu son appareil et ses codes de récupération, supprimez-la pour qu'elle puisse la reconfigurer.",
+				"reset": "Réinitialiser la validation en deux étapes",
+				"confirmReset": "Oui, réinitialiser",
+				"resetDone": "La validation en deux étapes a été réinitialisée. La personne pourra la reconfigurer à sa prochaine connexion.",
+				"resetFailed": "Impossible de réinitialiser la validation en deux étapes."
+			},
+			"cancel": "Annuler",
+			"save": "Enregistrer"
 		}
 	},
 	"globalRoles": {
@@ -303,8 +322,12 @@
 				"description": "Créer, modifier et supprimer des comptes de service, et émettre ou révoquer leurs clés d'API"
 			},
 			"gitIdentitiesManage": {
-				"label": "Gérer les identités Git",
-				"description": "Configurer et supprimer les identités GitHub (ou d'une autre plateforme Git) utilisées par les agents, pour tout l'espace de travail"
+				"label": "Gérer les connexions Git de l'espace de travail",
+				"description": "Ajouter et supprimer les applications GitHub et les jetons d'accès que tous les projets de l'espace de travail peuvent utiliser"
+			},
+			"settingsSecurityWrite": {
+				"label": "Gérer la sécurité de connexion",
+				"description": "Définit qui doit utiliser la validation en deux étapes et quelles adresses IP peuvent se connecter, et réinitialise la validation en deux étapes d'une autre personne. Retirer cette protection d'un compte revient à en prendre le contrôle : traitez-le comme un accès administrateur complet."
 			}
 		},
 		"permissionGroups": {
@@ -479,6 +502,38 @@
 				"loadFailed": "Impossible de charger les fournisseurs SSO.",
 				"deleteFailed": "Échec de la suppression du fournisseur. Veuillez réessayer."
 			}
+		},
+		"nav": {
+			"workspace": "Espace de travail",
+			"signIn": "Connexion",
+			"branding": "Identité visuelle",
+			"sso": "Authentification unique",
+			"security": "Sécurité de connexion"
+		},
+		"security": {
+			"roles": {
+				"title": "Rôles protégés",
+				"description": "Les règles ci-dessous s'appliquent aux personnes ayant l'un des rôles choisis. Activez Tous les rôles pour couvrir tout le monde, y compris les rôles créés plus tard.",
+				"all": "Tous les rôles"
+			},
+			"mfa": {
+				"title": "Exiger la validation en deux étapes",
+				"description": "Les personnes ayant un rôle protégé doivent configurer une application d'authentification avant de pouvoir se connecter par mot de passe. Les connexions SSO dépendent des paramètres multifacteur de votre fournisseur d'identité.",
+				"rolloutNote": "Celles qui ne l'ont pas encore configurée seront guidées lors de leur prochaine connexion."
+			},
+			"ip": {
+				"title": "Adresses IP autorisées",
+				"description": "Limite la connexion par mot de passe des rôles protégés à ces adresses. Laissez vide pour autoriser toute adresse.",
+				"hint": "Une adresse IP ou plage CIDR par ligne, par exemple 203.0.113.0/24. IPv4 et IPv6 sont pris en charge.",
+				"lockoutWarning": "Vérifiez que votre propre adresse est incluse, sinon vous risquez de perdre l'accès. La connexion SSO n'est pas concernée."
+			},
+			"noRoles": "Aucun rôle n'est encore protégé : ces règles ne s'appliquent donc à personne.",
+			"errors": {
+				"invalidCidr": "L'une des entrées n'est pas une adresse IP ou une plage CIDR valide.",
+				"selfLockout": "Votre propre adresse IP doit figurer dans la liste, sinon vous vous verrouilleriez. Ajoutez-la et enregistrez à nouveau.",
+				"saveFailed": "Échec de l'enregistrement. Veuillez réessayer.",
+				"loadFailed": "Impossible de charger les paramètres de sécurité de connexion."
+			}
 		}
 	},
 	"serviceAccounts": {
@@ -635,17 +690,8 @@
 		}
 	},
 	"git": {
-		"title": "Git",
-		"description": "Identités de bot qui permettent aux agents de cloner, pousser et ouvrir des pull requests ou merge requests sur vos plateformes Git. Chaque hôte a une identité partagée ; les agents peuvent aussi avoir la leur dans leurs paramètres.",
-		"noProviders": {
-			"title": "Aucun fournisseur Git installé",
-			"description": "Installez un plugin de fournisseur Git, comme GitHub Integration, pour configurer une identité de bot.",
-			"action": "Gérer les plugins"
-		},
 		"cancel": "Annuler",
-		"identity": {},
 		"setup": {
-			"button": "Configurer",
 			"dialogTitle": "Configurer {{provider}} sur {{host}}",
 			"dialogDescription": "Paca va créer sur {{host}} une identité de bot que les agents utilisent pour cloner, pousser et travailler sur {{changeRequests}}. Vous serez redirigé vers {{host}} pour l'approuver, puis ramené ici.",
 			"name": "Nom de l'app (facultatif)",
@@ -655,13 +701,50 @@
 			"start": "Continuer vers {{host}}",
 			"submitToken": "Enregistrer",
 			"public": "Autoriser l'installation sur d'autres comptes (app publique)",
-			"publicHelp": "Nécessaire lorsque les projets utilisent des dépôts de différents utilisateurs ou organisations. Une app privée ne peut être installée que sur le compte qui la possède."
+			"publicHelp": "Nécessaire lorsque les projets utilisent des dépôts de différents utilisateurs ou organisations. Une app privée ne peut être installée que sur le compte qui la possède.",
+			"next": "Suivant",
+			"tokenDescription": "Paca se connecte à {{host}} avec un jeton d'accès que vous y créez. À l'étape suivante, vous le collez.",
+			"host": "Hôte",
+			"hostHelp": "L'adresse de votre instance, par exemple gitlab.example.com.",
+			"kind": {
+				"label": "Se connecter avec",
+				"app": {
+					"title": "Application",
+					"help": "Paca crée une application sur {{provider}} pour vous. L'accès est limité aux dépôts sur lesquels vous l'installez."
+				},
+				"bot_user": {
+					"title": "Jeton d'accès",
+					"help": "Collez un jeton d'accès de projet ou de groupe. Paca agit comme son utilisateur bot."
+				},
+				"token": {
+					"title": "Jeton d'accès",
+					"help": "Collez un jeton d'accès personnel. Il agit comme son propriétaire : utilisez un compte machine dédié."
+				}
+			},
+			"scope": {
+				"label": "Disponible pour",
+				"project": {
+					"title": "Ce projet uniquement",
+					"help": "Seul ce projet peut lier des dépôts via cette connexion."
+				},
+				"workspace": {
+					"title": "Tous les projets",
+					"help": "Tous les projets de l'espace de travail peuvent lier des dépôts via cette connexion.",
+					"noPermission": "Nécessite l'autorisation d'espace de travail pour gérer les connexions Git."
+				},
+				"none": "Vous n'avez pas l'autorisation d'ajouter des connexions ici."
+			}
 		},
 		"delete": {
 			"button": "Retirer",
-			"title": "Retirer cette identité ?",
-			"description": "Les agents cesseront d'agir en tant que {{name}} sur {{host}} et utiliseront d'autres identités. Les dépôts déjà liés restent liés. L'app n'est pas supprimée sur la plateforme ; supprimez-la là-bas si vous n'en avez plus besoin.",
-			"confirm": "Retirer l'identité"
+			"title": "Supprimer cette connexion ?",
+			"description": "Les dépôts liés via {{name}} sur {{host}} cessent de fonctionner tant que vous ne les reconnectez pas via une autre connexion. L'application ou le jeton n'est pas supprimé sur la plateforme ; supprimez-le là-bas si vous n'en avez plus besoin.",
+			"confirm": "Supprimer la connexion",
+			"usage": {
+				"title": "Dépôts qui l'utilisent ({{count}}) :",
+				"others": "Plus {{count}} dans d'autres projets.",
+				"consequence": "Ils restent liés mais n'ont plus d'identifiants : les agents ne peuvent pas les utiliser. Reconnectez ensuite chacun à une autre connexion."
+			}
 		},
 		"callback": {
 			"working": "Finalisation de la configuration…",
@@ -679,23 +762,6 @@
 			"notFound": "Introuvable."
 		},
 		"copy": "Copier",
-		"copied": "Copié",
-		"status": {
-			"connected": "Connecté",
-			"notConnected": "Non connecté"
-		},
-		"platforms": {
-			"title": "Plateformes Git",
-			"description": "Chaque plateforme a besoin d'une identité de bot partagée."
-		},
-		"connect": {
-			"title": "Connecter {{provider}}",
-			"description": "Paca crée sur {{host}} un compte de bot que les agents utilisent pour lire le code, pousser des branches, ouvrir des pull requests et commenter.",
-			"time": "Environ une minute. Vous validez sur la plateforme, puis vous revenez ici."
-		},
-		"connected": {
-			"sharedNote": "Partagée par tous les projets et agents sans identité propre.",
-			"mention": "Mentionnez-le dans les commentaires :"
-		}
+		"copied": "Copié"
 	}
 }

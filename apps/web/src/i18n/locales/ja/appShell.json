@@ -21,7 +21,6 @@
 		"globalRoles": "グローバルロール",
 		"users": "ユーザー",
 		"plugins": "プラグイン",
-		"git": "Git",
 		"allProjects": "すべてのプロジェクト",
 		"project": "プロジェクト",
 		"agents": "エージェント",
@@ -85,7 +84,7 @@
 	},
 	"userMenu": {
 		"signIn": "サインイン",
-		"myProfile": "マイプロフィール",
+		"myProfile": "アカウント",
 		"apiKeys": "APIキー",
 		"logOut": "ログアウト",
 		"loggingOut": "ログアウト中…"

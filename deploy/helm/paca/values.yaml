@@ -43,6 +43,11 @@ secrets:
   # internal-only routes. Only required when agentRunner.enabled.
   internalApiKey: ""
   postgresPassword: ""
+  # Password (requirepass) of the bundled Valkey; required when valkey.enabled.
+  # Without it any pod in the cluster, including agent sandboxes, could use
+  # Valkey (agent triggers, environment commands, all conversation events).
+  # With existingSecret, put it under the VALKEY_PASSWORD key.
+  valkeyPassword: ""
   # Only read when rustfs.enabled is false (external S3) — the bundled
   # RustFS's own credentials live under rustfs.secret.rustfs.* instead, see
   # that section's doc comment for why the two aren't unified into one.
@@ -247,6 +252,9 @@ api:
   # / SSO endpoint (token refresh gets 3x). 0 disables the limit. The client
   # IP is the rightmost X-Forwarded-For entry, which the gateway sets.
   authRateLimitPerMinute: 20
+  # Reverse proxies in front of the API appending to X-Forwarded-For (0 = none).
+  # Drives the client address used by IP allow-lists and rate limits.
+  trustedProxyHops: 1
 
   # Installed-plugin storage (backend WASM, frontend bundles, MCP bundles,
   # Agent Skills bundles — deploy/docker-compose.prod.yml's
@@ -263,6 +271,10 @@ api:
   # installed plugins won't survive a Pod restart or be visible to the
   # gateway, so plugin installation isn't usable in that mode.
   plugins:
+    # Comma-separated exact hostnames paca.fetch may reach on a private address,
+    # e.g. a self-hosted GitLab inside the cluster's network. Empty blocks all
+    # private addresses. See docs/plugins/backend-plugin-system.md.
+    fetchPrivateHosts: ""
     persistence:
       enabled: true
       accessMode: ReadWriteMany

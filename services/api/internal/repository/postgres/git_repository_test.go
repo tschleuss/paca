@@ -22,36 +22,42 @@ func sharedIdentity(host string) *gitdom.Identity {
 		Scope: gitdom.ScopeShared, Handle: "paca-bot", DisplayName: "Paca", ProviderRef: json.RawMessage(`{"installation":7}`)}
 }
 
-func TestGitStore_OneSharedIdentityPerProviderHost(t *testing.T) {
-	s, _ := newGitFx(t)
+func TestGitStore_SeveralConnectionsPerProviderHost(t *testing.T) {
+	s, fx := newGitFx(t)
 	ctx := t.Context()
 	a := sharedIdentity("github.com")
 	if err := s.CreateIdentity(ctx, a); err != nil || a.ID == uuid.Nil {
 		t.Fatalf("create: %v id=%v", err, a.ID)
 	}
-	if err := s.CreateIdentity(ctx, sharedIdentity("github.com")); !errors.Is(err, gitdom.ErrIdentityExists) {
-		t.Fatalf("second shared identity on a host: got %v, want ErrIdentityExists", err)
-	}
-	// Another host, or an agent-scoped identity on the same host, is fine.
-	if err := s.CreateIdentity(ctx, sharedIdentity("ghe.acme.com")); err != nil {
-		t.Fatalf("other host: %v", err)
+	// A second workspace connection on the same host (another App, or a token).
+	b := sharedIdentity("github.com")
+	b.ProviderIdentityID = "app-b"
+	if err := s.CreateIdentity(ctx, b); err != nil {
+		t.Fatalf("second shared connection on a host: %v", err)
 	}
 	agentOwn := sharedIdentity("github.com")
 	agentOwn.Scope, agentOwn.ProviderIdentityID = gitdom.ScopeAgent, "app-2"
 	if err := s.CreateIdentity(ctx, agentOwn); err != nil {
 		t.Fatalf("agent identity on the same host: %v", err)
 	}
-
-	got, err := s.FindSharedIdentity(ctx, "com.paca.github", "github.com")
-	if err != nil || got.ID != a.ID || string(got.ProviderRef) == "" {
-		t.Fatalf("find shared: %+v %v", got, err)
-	}
-	if _, err := s.FindSharedIdentity(ctx, "com.paca.github", "nope.example"); !errors.Is(err, gitdom.ErrNotFound) {
-		t.Fatalf("missing: %v", err)
-	}
 	list, _ := s.ListSharedIdentities(ctx, "com.paca.github")
 	if len(list) != 2 {
 		t.Fatalf("shared identities = %d, want 2 (the agent one is not shared)", len(list))
+	}
+
+	project := fx.project()
+	mine := sharedIdentity("github.com")
+	mine.Scope, mine.ProviderIdentityID, mine.ProjectID = gitdom.ScopeProject, "project-app", &project
+	if err := s.CreateIdentity(ctx, mine); err != nil {
+		t.Fatalf("project connection: %v", err)
+	}
+	visible, err := s.ListProjectIdentities(ctx, project)
+	if err != nil || len(visible) != 3 {
+		t.Fatalf("a project sees the workspace's two and its own: %d %v", len(visible), err)
+	}
+	other, err := s.ListProjectIdentities(ctx, fx.project())
+	if err != nil || len(other) != 2 {
+		t.Fatalf("another project sees only the workspace's: %d %v", len(other), err)
 	}
 	byRef, err := s.FindIdentityByProviderRef(ctx, "com.paca.github", "app-2")
 	if err != nil || byRef.ID != agentOwn.ID {
@@ -761,5 +767,140 @@ func TestGitStore_ListedRepositoriesCarryTheirBotsHandle(t *testing.T) {
 				t.Errorf("a repository with no identity has no handle: %q", r.IdentityHandle)
 			}
 		}
+	}
+}
+
+func TestGitStore_WebhookAttemptsComeFromTheAuditLog(t *testing.T) {
+	s, fx := newGitFx(t)
+	ctx := t.Context()
+	project := fx.project()
+	tried := linkRepo(t, s, project, "acme/tried", nil)
+	failed := linkRepo(t, s, project, "acme/failed", nil)
+	never := linkRepo(t, s, project, "acme/never", nil)
+	for _, e := range []*gitdom.ActionLogEntry{
+		{ProjectID: &project, RepositoryID: &tried.ID, Tool: "webhook.register", OK: true},
+		{ProjectID: &project, RepositoryID: &failed.ID, Tool: "webhook.register", OK: false, Detail: ": forbidden"},
+		{ProjectID: &project, RepositoryID: &never.ID, Tool: "git.push", OK: true},
+	} {
+		if err := s.AppendActionLog(ctx, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.WebhookAttempts(ctx, project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got[tried.ID] || !got[failed.ID] || got[never.ID] || len(got) != 2 {
+		t.Fatalf("attempts = %v", got)
+	}
+}
+
+func TestGitStore_RepositoryDescription(t *testing.T) {
+	s, fx := newGitFx(t)
+	ctx := t.Context()
+	project := fx.project()
+	r := linkRepo(t, s, project, "acme/web", nil)
+	if got, err := s.FindRepository(ctx, r.ID); err != nil || got.Description != "" {
+		t.Fatalf("default description = %+v %v", got, err)
+	}
+	if err := s.SetRepositoryDescription(ctx, project, r.ID, "Web client"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.FindRepository(ctx, r.ID); err != nil || got.Description != "Web client" {
+		t.Fatalf("description = %+v %v", got, err)
+	}
+	if err := s.SetRepositoryDescription(ctx, fx.project(), r.ID, "x"); !errors.Is(err, gitdom.ErrNotFound) {
+		t.Fatalf("another project: %v", err)
+	}
+}
+
+func TestGitStore_DeletingAConnectionLeavesItsRepositoriesToBeRebound(t *testing.T) {
+	s, fx := newGitFx(t)
+	ctx := t.Context()
+	project := fx.project()
+	a, b := sharedIdentity("github.com"), sharedIdentity("github.com")
+	b.ProviderIdentityID = "app-b"
+	for _, i := range []*gitdom.Identity{a, b} {
+		if err := s.CreateIdentity(ctx, i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r1 := linkRepo(t, s, project, "acme/web", &a.ID)
+	linkRepo(t, s, fx.project(), "acme/web", &a.ID) // another project, same connection
+	if err := s.SetRepositoryWebhook(ctx, r1.ID, json.RawMessage(`{"id":"5"}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	counts, err := s.CountRepositories(ctx, []uuid.UUID{a.ID, b.ID})
+	if err != nil || counts[a.ID] != 2 || counts[b.ID] != 0 {
+		t.Fatalf("counts = %v %v", counts, err)
+	}
+	if empty, err := s.CountRepositories(ctx, nil); err != nil || len(empty) != 0 {
+		t.Fatalf("no ids: %v %v", empty, err)
+	}
+
+	if err := s.DeleteIdentity(ctx, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.FindRepository(ctx, r1.ID)
+	if err != nil || got.IdentityID != nil {
+		t.Fatalf("the repository stays, without a connection: %+v %v", got, err)
+	}
+
+	if err := s.SetRepositoryIdentity(ctx, r1.ID, b.ID, json.RawMessage(`{"installation":9}`)); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.FindRepository(ctx, r1.ID)
+	if got.IdentityID == nil || *got.IdentityID != b.ID || string(got.ProviderRef) != `{"installation": 9}` && string(got.ProviderRef) != `{"installation":9}` {
+		t.Fatalf("rebound: %+v", got)
+	}
+	if string(got.WebhookRef) != `{}` {
+		t.Fatalf("the webhook of the old connection must be forgotten: %s", got.WebhookRef)
+	}
+	if err := s.SetRepositoryIdentity(ctx, uuid.New(), b.ID, nil); !errors.Is(err, gitdom.ErrNotFound) {
+		t.Fatalf("unknown repository: %v", err)
+	}
+}
+
+func TestGitStore_UpdateIdentityProfile(t *testing.T) {
+	s, _ := newGitFx(t)
+	ctx := t.Context()
+	exp := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Microsecond)
+	i := sharedIdentity("gitlab.com")
+	i.Handle, i.DisplayName = "", "GitLab connection"
+	if err := s.CreateIdentity(ctx, i); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateIdentityProfile(ctx, i.ID, "paca-bot", "Paca Bot", &exp); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	got, err := s.FindIdentity(ctx, i.ID)
+	if err != nil || got.Handle != "paca-bot" || got.DisplayName != "Paca Bot" || got.ExpiresAt == nil || !got.ExpiresAt.Equal(exp) {
+		t.Fatalf("after update: %+v %v", got, err)
+	}
+	// A row that already has a handle is left unchanged.
+	if err := s.UpdateIdentityProfile(ctx, i.ID, "renamed", "Other", nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.FindIdentity(ctx, i.ID)
+	if got.Handle != "paca-bot" || got.DisplayName != "Paca Bot" || got.ExpiresAt == nil || !got.ExpiresAt.Equal(exp) {
+		t.Errorf("a named identity was overwritten: %+v", got)
+	}
+	// An empty name and no expiry keep what is stored.
+	j := sharedIdentity("gitlab.com")
+	j.ProviderIdentityID, j.Handle, j.DisplayName = "tok-2", "", "GitLab connection"
+	if err := s.CreateIdentity(ctx, j); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateIdentityProfile(ctx, j.ID, "bot2", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.FindIdentity(ctx, j.ID)
+	if got.Handle != "bot2" || got.DisplayName != "GitLab connection" || got.ExpiresAt != nil {
+		t.Errorf("empty values overwrote: %+v", got)
+	}
+	// An unknown identity is a no-op.
+	if err := s.UpdateIdentityProfile(ctx, uuid.New(), "x", "", nil); err != nil {
+		t.Errorf("unknown identity: %v", err)
 	}
 }

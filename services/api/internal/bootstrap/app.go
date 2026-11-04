@@ -38,6 +38,7 @@ import (
 	environmentsvc "github.com/Paca-AI/api/internal/service/environment"
 	exportsvc "github.com/Paca-AI/api/internal/service/export"
 	gitsvc "github.com/Paca-AI/api/internal/service/git"
+	mfasvc "github.com/Paca-AI/api/internal/service/mfa"
 	notificationsvc "github.com/Paca-AI/api/internal/service/notification"
 	pluginsvc "github.com/Paca-AI/api/internal/service/plugin"
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
@@ -247,6 +248,28 @@ func New(cfg *config.Config) (*App, error) {
 		// Surface it once at startup.
 		log.Warn("ENCRYPTION_KEY not set: agent LLM API keys, plugin secrets, and project Jev API keys will be stored in plaintext, not encrypted")
 	}
+	// IP allow-lists and TOTP second factor, checked after the password. With
+	// no enrollments, CIDRs or policy configured (the default) it is a no-op.
+	// TOTP enrollment needs the encryptor; without it only the allow-lists work.
+	mfaService := mfasvc.New(pgRepo.NewMFARepository(db), encryptor, "Paca")
+	// Passkeys need a relying-party identity, taken from PUBLIC_URL; without
+	// one they stay off and accounts keep using TOTP.
+	// The store is installed either way, so accounts that already registered a
+	// passkey keep owing a second factor if the relying party goes missing.
+	passkeyRepo := pgRepo.NewPasskeyRepository(db)
+	mfaService.WithPasskeyStore(passkeyRepo)
+	if rp, ok := mfasvc.RelyingPartyFromURL(cfg.Server.PublicURL, cfg.Server.PasskeyRPID, "Paca"); ok {
+		if _, err := mfaService.WithPasskeys(passkeyRepo, redisRepo.NewCeremonyStore(redisClient), rp); err != nil {
+			log.Warn("passkeys disabled: invalid relying-party config; accounts with a passkey cannot sign in until it is fixed", "error", err)
+		}
+	} else {
+		log.Warn("PUBLIC_URL not set or invalid: passkeys are disabled; accounts with a passkey cannot sign in until it is set (or an admin resets their MFA)")
+	}
+	authService.WithLoginGate(mfaService)
+	// Wrong-password lockout per username: 10 failures within 15 minutes lock
+	// that name for 15 minutes. Held in Redis, so it covers every API instance.
+	loginThrottle := redisRepo.NewLoginThrottle(redisClient, 10, 15*time.Minute, 15*time.Minute)
+	authService.WithLoginThrottle(loginThrottle)
 	// Reassigned (unlike agentService/environmentService above) because
 	// projectServiceBase is a local var read again below when wiring
 	// ProjectHandler's Jev-config option — WithEncryptor mutates in place,
@@ -254,7 +277,7 @@ func New(cfg *config.Config) (*App, error) {
 	// pointer's provenance obvious at every read site.
 	projectServiceBase = projectServiceBase.WithEncryptor(encryptor)
 	ssoService := ssosvc.New(pgRepo.NewSSORepository(db), redisRepo.NewSSOStateStore(redisClient, 10*time.Minute),
-		userRepo, userService, authService, log).WithEncryptor(encryptor)
+		userRepo, userService, authService, log).WithEncryptor(encryptor).WithIPCheck(mfaService)
 	activityService := tasksvc.NewActivityService(activityLog, taskRepo, projectRepo).
 		WithNotificationService(notificationService).
 		WithAgentTrigger(triggerGate)
@@ -377,6 +400,14 @@ func New(cfg *config.Config) (*App, error) {
 	// embedded in the user.created event payload every subscriber receives.
 	passwordSetTokenIssuer := pluginrt.PasswordSetTokenIssuerFunc(userService.IssuePasswordSetToken)
 
+	fetchPrivateHosts, rejectedHosts := netguard.NewPrivateHosts(cfg.Plugins.FetchPrivateHosts)
+	for _, entry := range rejectedHosts {
+		log.Warn("PLUGIN_FETCH_PRIVATE_HOSTS: ignoring entry, only exact ASCII hostnames are accepted (punycode for international names, no leading or trailing dot)", "entry", entry)
+	}
+	if !fetchPrivateHosts.Empty() {
+		log.Warn("paca.fetch may reach private network addresses for these hosts", "hosts", fetchPrivateHosts.Names())
+	}
+
 	pluginRuntime := pluginrt.NewRuntime(pluginStore, pluginrt.HostServices{
 		DB:        sqlDB,
 		Log:       log,
@@ -390,8 +421,10 @@ func New(cfg *config.Config) (*App, error) {
 		// already use netguard for their own clients; this one (paca.fetch,
 		// used by every installed plugin's outbound calls) was the one
 		// netguard's own package doc says it was built for but never got
-		// wired up.
-		HTTPClient:             netguard.NewSafeHTTPClient(30 * time.Second),
+		// wired up. PLUGIN_FETCH_PRIVATE_HOSTS relaxes the IP rule for the
+		// listed hosts only, for this client only; the pin stays.
+		HTTPClient:             netguard.NewSafeHTTPClientWithPrivateHosts(30*time.Second, fetchPrivateHosts),
+		FetchPrivateHosts:      fetchPrivateHosts,
 		Authorizer:             authorizer,
 		Cache:                  cacheStore,
 		SettingsReader:         settingsReader,
@@ -496,6 +529,12 @@ func New(cfg *config.Config) (*App, error) {
 		WithPublicURL(cfg.Server.PublicURL).
 		WithAgentNamer(gitAgentLookup{repo: agentRepo}).
 		WithAgentDirectory(gitAgentDirectory{repo: agentRepo})
+	// A deleted project takes its own Git connections with it.
+	projectServiceBase.WithDeleteHook(func(ctx context.Context, id uuid.UUID) {
+		if err := gitService.PurgeProjectConnections(ctx, id); err != nil {
+			log.Warn("git: purging a deleted project's connections", "project_id", id, "error", err)
+		}
+	})
 	// Routes webhook events to agent runs and keeps run status current.
 	gitRouter := gitsvc.NewRouter(gitService, gitAgentDirectory{repo: agentRepo}, gitRunStarter{agents: agentService}, gitsvc.RouterOptions{}, log)
 	gitHandler := handler.NewGitHandler(gitService).WithAgentLookup(gitAgentLookup{repo: agentRepo}).WithOps(gitService)
@@ -518,7 +557,7 @@ func New(cfg *config.Config) (*App, error) {
 		RefreshSessionTTL: cfg.JWT.RefreshSessionTTL,
 	}
 
-	authHandler := handler.NewAuthHandler(authService, cookieCfg)
+	authHandler := handler.NewAuthHandler(authService, cookieCfg).WithPasskeyLogin(authService)
 	deps := router.Deps{
 		TokenManager:        tokenManager,
 		APIKeyAuth:          apiKeyService,
@@ -531,6 +570,7 @@ func New(cfg *config.Config) (*App, error) {
 		Version:             handler.NewVersionHandler(cfg.Release, cacheStore, log),
 		Auth:                authHandler,
 		SSO:                 handler.NewSSOHandler(ssoService, authHandler, cfg.Server.PublicURL),
+		MFA:                 handler.NewMFAHandler(mfaService, userRepo).WithLoginThrottle(loginThrottle),
 		User:                handler.NewUserHandler(userService, authService).WithAvatarService(attachmentService),
 		Role:                handler.NewRoleHandler(roleService),
 		RoleAttachments:     httpmw.NewRoleServiceAttachments(roleService),
@@ -592,6 +632,7 @@ func New(cfg *config.Config) (*App, error) {
 		AuthRateLimit:      cfg.Server.AuthRateLimit,
 	}
 
+	httpmw.SetTrustedProxyHops(cfg.Server.TrustedProxyHops)
 	engine := router.New(deps)
 
 	srv := &http.Server{

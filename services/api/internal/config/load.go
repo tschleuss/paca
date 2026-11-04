@@ -55,6 +55,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("config: COOKIE_SECURE: %w", err)
 	}
 
+	proxyHops, err := strconv.Atoi(env("TRUSTED_PROXY_HOPS", "1"))
+	if err != nil || proxyHops < 0 {
+		return nil, fmt.Errorf("config: TRUSTED_PROXY_HOPS must be a non-negative integer, got %q", env("TRUSTED_PROXY_HOPS", "1"))
+	}
+
 	authRateLimit, err := strconv.Atoi(env("AUTH_RATE_LIMIT_PER_MINUTE", "20"))
 	if err != nil || authRateLimit < 0 {
 		return nil, fmt.Errorf("config: AUTH_RATE_LIMIT_PER_MINUTE must be a non-negative integer, got %q", env("AUTH_RATE_LIMIT_PER_MINUTE", "20"))
@@ -175,8 +180,10 @@ func Load() (*Config, error) {
 			Port:               env("PORT", "8080"),
 			CookieSecure:       cookieSecure,
 			PublicURL:          env("PUBLIC_URL", ""),
-			CORSAllowedOrigins: parseCORSOrigins(env("CORS_ORIGINS", "*")),
+			PasskeyRPID:        env("PASSKEY_RP_ID", ""),
+			CORSAllowedOrigins: parseCommaList(env("CORS_ORIGINS", "*")),
 			AuthRateLimit:      authRateLimit,
+			TrustedProxyHops:   proxyHops,
 		},
 		Database: DatabaseConfig{
 			DSN: dsn,
@@ -227,6 +234,7 @@ func Load() (*Config, error) {
 			S3Prefix:              env("PLUGINS_S3_PREFIX", "plugins"),
 			MarketplaceCatalogURL: env("PLUGINS_MARKETPLACE_CATALOG_URL", "https://raw.githubusercontent.com/Paca-AI/paca-plugins/master/catalog/plugins.json"),
 			MarketplaceTimeout:    marketplaceTimeout,
+			FetchPrivateHosts:     parseCommaList(env("PLUGIN_FETCH_PRIVATE_HOSTS", "")),
 			Limits: PluginLimitsConfig{
 				MaxCallDuration:     pluginMaxCallDuration,
 				MaxMemoryPages:      pluginMaxMemoryPages,
@@ -247,18 +255,18 @@ func Load() (*Config, error) {
 	}, nil
 }
 
-// parseCORSOrigins splits a comma-separated CORS_ORIGINS value into an
-// allow-list, trimming whitespace and dropping empty entries.
-func parseCORSOrigins(v string) []string {
+// parseCommaList splits a comma-separated value into a list, trimming
+// whitespace and dropping empty entries.
+func parseCommaList(v string) []string {
 	parts := strings.Split(v, ",")
-	origins := make([]string, 0, len(parts))
+	items := make([]string, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
 		if p != "" {
-			origins = append(origins, p)
+			items = append(items, p)
 		}
 	}
-	return origins
+	return items
 }
 
 // env returns the environment variable value or a fallback default.
