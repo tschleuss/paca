@@ -1,3 +1,39 @@
+# OrbStack incident validation — 2026-11-04
+
+The health endpoint returned 200 while Valkey was above its 128 MB `noeviction`
+limit. Full-sample memory inspection attributed approximately 66.4 MB each to
+`paca.activities` and `paca.plugin_events`; both consumer groups reported zero
+pending/unread entries. API logs contained thousands of scheduler OOM warnings,
+cache-set failures and browser auth-refresh 500 responses. PING alone missed this
+write failure.
+
+The application limit is now 512 MB, with a 1 GB container limit. Runtime Compose
+was backed up privately, updated from source and validated. Valkey was recreated
+under the existing lifecycle lock with the same persistent volume and guarded
+namespace, leaving all event entries and the no-eviction policy intact. Inspection
+confirms the persisted container command and resource limit. A temporary key with
+a 30-second TTL was successfully written/read; scheduler locks resumed and no new
+OOM warnings appeared after the change. Network isolation and six backup safeguard
+tests passed. The scheduled encrypted local/NAS backup completed at 12:17 UTC
+before this adjustment; no restore drill was repeated.
+
+Stash access checks independently passed for all four worker/reviewer profiles:
+direct project/task HTTP reads and real MCP project/task/handoff reads. Both
+Claude and Codex board-script epic listings passed. Active key issuance remains
+2026-10-22 with expiry in January 2027; no keys were rotated. Installed adapter
+and policy files match Stash's committed `0.19.1-2` release.
+
+The reported Claude editor session rejection was separately reproduced: it omitted
+the required `projectId`, supplied `number` instead of numeric `taskNumber`, and
+used the board helper's epic-only `show` command on child task STAS-976. These
+validation failures are masked by a generic adapter error. The same Claude worker
+launcher successfully read STAS-976 with the published argument schema. No Stash
+task/document writes or credential changes were performed by these diagnostics.
+
+Retained event streams remain unbounded upstream. This capacity adjustment restores
+headroom; it does not establish a long-term retention policy or repair historical
+events that may have failed to publish while Valkey rejected writes.
+
 # OrbStack update validation — 2026-10-27
 
 The customized `synology-lan` branch merged upstream `master` at

@@ -59,12 +59,14 @@ services:
   valkey:
     <<: *common
     image: valkey/valkey:8-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
-    mem_limit: 256m
+    # Persistent event streams share Valkey with sessions/cache. Leave room for
+    # allocator overhead and copy-on-write during persistence; do not evict jobs.
+    mem_limit: 1g
     cpus: 0.5
     # Fail writes at capacity instead of evicting queue/stream data.
     depends_on:
       network-guard: {condition: service_healthy}
-    command: [valkey-server, --appendonly, "yes", --maxmemory, 128mb, --maxmemory-policy, noeviction]
+    command: [valkey-server, --appendonly, "yes", --maxmemory, 512mb, --maxmemory-policy, noeviction]
     volumes: ["valkey_data:/data"]
     healthcheck:
       test: [CMD, valkey-cli, ping]

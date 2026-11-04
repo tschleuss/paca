@@ -54,6 +54,22 @@ The default external allowlist is **empty**. This works for the board, documents
 
 Allowing outbound TCP 443 globally would permit contact with arbitrary HTTPS servers. A domain allowlist needs a controlled egress proxy, destination validation, DNS controls and blocking of direct-IP bypasses. None is required for the current offline core, so this deployment avoids that extra service. Add an explicitly reviewed proxy policy later if there is a concrete integration you need; do not remove OUTPUT DROP as a shortcut.
 
+## Valkey capacity
+
+Valkey holds sessions/cache and persistent event streams. Its application memory
+limit is **512 MB**, with a **1 GB** container limit for allocator and persistence
+overhead. Keep `noeviction`: dropping arbitrary keys can lose queued work or
+sessions. A passing `PING`/health check does not prove writes are working.
+
+On 2026-11-04, retained `paca.activities` and `paca.plugin_events` streams filled
+the previous 128 MB limit. Scheduler/cache writes failed and browser token refresh
+returned 500. Raising capacity restored writes without deleting stream entries or
+rotating credentials. Check `valkey-cli INFO memory` and API OOM warnings when
+diagnosing a partially working instance. These upstream streams have no automatic
+retention bound; the larger allowance provides headroom, not a retention policy.
+Any future cleanup must account for every consumer group's pending and unread
+entries and the intended replay/audit history.
+
 ## Backups
 
 The installed user LaunchAgent runs a backup every **six hours while this Mac is awake and you are logged in**, and on filesystem mounts. It never starts a stopped application. It cannot back up while the Mac is asleep or powered off. OrbStack must be running.
