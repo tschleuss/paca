@@ -8,7 +8,6 @@ x-common: &common
     driver: json-file
     options: {max-size: "10m", max-file: "3"}
   networks: [backend]
-  pids_limit: 256
 
 services:
   postgres:
@@ -22,7 +21,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/init.sh}
     volumes: ["./state/postgres:/var/lib/postgresql/data"]
     healthcheck:
-      test: [CMD-SHELL, "pg_isready -U paca -d paca"]
+      # The first-start temporary server listens only on the Unix socket.
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U paca -d paca"]
       interval: 10s
       timeout: 5s
       retries: 20

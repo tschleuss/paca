@@ -5,6 +5,9 @@ set -eu
 cd "$(dirname "$0")/.."
 umask 077
 dc() { docker compose --env-file .env -f docker-compose.yml "$@"; }
+# Authenticate over TCP so initialization's temporary socket-only server cannot
+# be mistaken for the final PostgreSQL process. Secrets stay inside the container.
+pg() { dc exec -T postgres sh -ec 'export PGPASSWORD="$POSTGRES_PASSWORD"; exec "$@"' sh "$@"; }
 test -f .env
 test -f recovery/database.dump
 test -f recovery/state.tar.gz
@@ -47,12 +50,22 @@ else
   dc config -q
 fi
 dc up -d --wait --wait-timeout 180 postgres
-tables=$(dc exec -T postgres psql -U paca -d paca -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+attempt=0
+until pg psql -h 127.0.0.1 -U paca -d paca -Atc 'SELECT 1' >/dev/null 2>&1; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 30 ]; then
+    echo 'PostgreSQL did not become ready for SQL. Recent logs:' >&2
+    dc logs --tail 60 postgres
+    exit 1
+  fi
+  sleep 2
+done
+tables=$(pg psql -h 127.0.0.1 -U paca -d paca -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
 if [ "$tables" != 0 ]; then
   echo 'Database is not empty. Refusing to restore.' >&2
   exit 1
 fi
-dc exec -T postgres pg_restore --exit-on-error --single-transaction --no-owner --no-privileges -U paca -d paca < recovery/database.dump
+pg pg_restore -h 127.0.0.1 --exit-on-error --single-transaction --no-owner --no-privileges -U paca -d paca < recovery/database.dump
 dc stop postgres
 touch .restored-from-orbstack
 echo 'Restore complete. Create the paca-synology project in Container Manager using this directory and its existing docker-compose.yml, then start it.'

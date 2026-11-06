@@ -101,3 +101,8 @@ sudo sh scripts/restore-orbstack.sh --resume-database
 
 This checks for an empty database and refuses to overwrite an existing restore.
 It leaves the restored object storage and other files in place.
+
+The first PostgreSQL initialization uses a temporary Unix-socket-only server.
+The current health check and restore script use TCP and wait for an actual SQL
+query, preventing a premature readiness signal while that temporary server stops.
+The NAS kernel also lacks PID-count cgroups; that optional limit is omitted.
