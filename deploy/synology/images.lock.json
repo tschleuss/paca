@@ -1,47 +1,8 @@
 {
   "reviewed_at": "2026-10-21",
-  "upstream_tag": "v0.19.1",
-  "upstream_commit": "984030d2529a575656d0c696eacd0b1e7e4ed2c7",
+  "upstream_tag": "v0.20.2",
+  "upstream_commit": "92ca114e6d4c3e1136651145ca43f46090abf8e2",
   "images": {
-    "pacaai/paca-api:0.19.1": {
-      "digest": "sha256:4cecd02d1c4bdfc126f6683ad2e64e54cdee78afa90f3f5620584a320ac68947",
-      "platforms": [
-        {
-          "architecture": "amd64",
-          "os": "linux"
-        },
-        {
-          "architecture": "arm64",
-          "os": "linux"
-        }
-      ]
-    },
-    "pacaai/paca-web:0.19.1": {
-      "digest": "sha256:b4ad3de67d5c9d458ccb1ae4f354e43d2f46e050356abb93ea6a1bd6e61a89af",
-      "platforms": [
-        {
-          "architecture": "amd64",
-          "os": "linux"
-        },
-        {
-          "architecture": "arm64",
-          "os": "linux"
-        }
-      ]
-    },
-    "pacaai/paca-realtime:0.19.1": {
-      "digest": "sha256:d818303f9affd52700f12dca87013bff39c78fb0902ee6cd851728b2e2b00317",
-      "platforms": [
-        {
-          "architecture": "amd64",
-          "os": "linux"
-        },
-        {
-          "architecture": "arm64",
-          "os": "linux"
-        }
-      ]
-    },
     "postgres:16-alpine": {
       "digest": "sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
       "platforms": [
@@ -152,6 +113,58 @@
           "os": "linux"
         }
       ]
+    },
+    "pacaai/paca-api:0.20.2": {
+      "digest": "sha256:8b0a7f2a4c611e0b5fc097bd073f90928bbe1f1d98392d0a7981146e2a36f772",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ]
+    },
+    "pacaai/paca-web:0.20.2": {
+      "digest": "sha256:d71c6eec583073186982a74e40db26ee69a1111c12b7dc29883a821f6bf90ad8",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ]
+    },
+    "pacaai/paca-realtime:0.20.2": {
+      "digest": "sha256:b11009ace9fa50718275c20d2f28e62b861bc7e9c1563d0a9718777091088bf5",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ]
     }
+  },
+  "pins_updated_at": "2026-11-06",
+  "api_build": {
+    "image": "paca-api-local:0.20.2-local.1-amd64",
+    "version": "v0.20.2+local.1",
+    "source": "services/api of this fork: upstream v0.20.2 plus the folder-scoped document-create patch",
+    "patches": [
+      "Document create is authorized on the document collection with its target folder, not on the whole project, so a folder-scoped docs:write role can create documents in its folder (router.go, doc_create_scope_test.go). Folder routes stay project-gated."
+    ],
+    "build": "docker --context orbstack build --platform linux/amd64 --build-arg PACA_VERSION=v0.20.2+local.1 -t paca-api-local:0.20.2-local.1-amd64 services/api",
+    "note": "Local fork API required to preserve folder-scoped document creation. Rebuild from this checkout; official API image is recorded only as an upstream reference.",
+    "built_image_id": "sha256:80e2bde90c48a3b90ac313981afe7bf46469e7fd206471387cda4be3f8124f72",
+    "built_at": "2026-11-06"
   }
 }

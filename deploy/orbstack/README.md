@@ -1,6 +1,6 @@
 # Paca on OrbStack, with outbound access blocked
 
-This runs Paca on this Mac at **https://localhost:8443**. The NAS holds encrypted backups; it does not run the application. It uses Docker Compose because Paca needs several services. `Dockerfile` builds the small firewall/backup tools image. Application images are pinned to **v0.20.0**; `images.lock.json` records their registry digests and source revision. Infrastructure images retain the prior pins.
+This runs Paca on this Mac at **https://localhost:8443**. The NAS holds encrypted backups; it does not run the application. It uses Docker Compose because Paca needs several services. `Dockerfile` builds the small firewall/backup tools image. Deployment files target **v0.20.2** (the running Mac instance is unchanged until you apply them); `images.lock.json` records their registry digests and source revision. Infrastructure images retain the prior pins.
 
 ```sh
 cd /Users/tschleuss/Documents/Repositories/paca/deploy/orbstack
@@ -101,7 +101,7 @@ The bundle is encrypted with **age** before leaving the Mac. The NAS receives `.
 
 **Save `secrets/backup.agekey` somewhere separate from this Mac**, such as your password manager's secure file storage. That is the recovery identity. It is deliberately **not included inside its own encrypted backup**. Without it, NAS backups cannot be decrypted after losing the Mac. The public `backup.recipient` cannot decrypt anything.
 
-The Mac keeps the newest four encrypted archives after successful NAS delivery. During a NAS outage, queued local backups are retained. NAS archives are not automatically deleted; monitor free space and apply a retention policy to this dedicated instance directory when appropriate. Back up the recovery identity separately before deleting local data. The NAS copy does not protect against loss of both the NAS and Mac at the same site; an additional offline/offsite copy remains useful.
+The Mac keeps the newest four encrypted archives after successful NAS delivery. During a NAS outage, queued local backups are retained. The NAS keeps the newest seven checksum-verified archive/checksum pairs in this instance directory after successful sync; unverified files and partial uploads are left untouched. Back up the recovery identity separately before deleting local data. The NAS copy does not protect against loss of both the NAS and Mac at the same site; an additional offline/offsite copy remains useful.
 
 Commands:
 
@@ -182,7 +182,7 @@ Reinitializations must use a source branch containing the fix; refreshing from
 an older checkout would reinstall the old gateway configuration. Recreate the
 gateway to apply `init`; an ordinary container restart cannot change that option.
 
-Before an update, create/verify a backup, review upstream changes and migration requirements, then update explicit image digests in `compose.yaml` and `images.lock.json` and review workstation MCP compatibility. The generic workstation client is in `../synology/agents/`; Stash has its own separately versioned curated adapter. The Synology evaluation's own Compose and image lock remain a separate historical deployment. Do not use `latest`, Watchtower or the upstream installer on this customized directory. Do not run an old API image against a newly migrated database to roll back: restore the complete pre-update backup instead.
+Before an update, create/verify a backup, review upstream changes and migration requirements, then update explicit image digests in `compose.yaml` and `images.lock.json` and review workstation MCP compatibility. The generic workstation client is in `../synology/agents/`; Stash has its own separately versioned curated adapter. The Synology Compose now targets v0.20.2; follow its NAS-MIGRATION.md for this move. Do not use `latest`, Watchtower or the upstream installer on this customized directory. Do not run an old API image against a newly migrated database to roll back: restore the complete pre-update backup instead.
 
 Running OrbStack uses the released image pins, not the source checkout, except
 for the API (below). The
@@ -201,8 +201,8 @@ any later client upgrade separately. v0.20.0 still has no stream retention bound
 
 ### The locally built API
 
-The API runs `paca-api-local:0.20.0-local.1`, built from this fork's
-`services/api` (upstream v0.20.0 plus the patches listed under `api_build` in
+The API runs `paca-api-local:0.20.2-local.1`, built from this fork's
+`services/api` (upstream v0.20.2 plus the patches listed under `api_build` in
 `images.lock.json`). Web and realtime stay upstream images. The current patch
 lets a role whose `docs:write` is limited to one folder create documents in that
 folder: document creation is authorized on the document collection with its

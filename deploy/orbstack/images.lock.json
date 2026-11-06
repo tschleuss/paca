@@ -1,7 +1,7 @@
 {
   "reviewed_at": "2026-11-04",
-  "upstream_tag": "v0.20.0",
-  "upstream_commit": "ba38b7523fe212a4d24d2bb62b9628db4299ee08",
+  "upstream_tag": "v0.20.2",
+  "upstream_commit": "92ca114e6d4c3e1136651145ca43f46090abf8e2",
   "images": {
     "postgres:16-alpine": {
       "digest": "sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
@@ -114,8 +114,8 @@
         }
       ]
     },
-    "pacaai/paca-api:0.20.0": {
-      "digest": "sha256:c3953c2eb18b6cf1932671fa3673f3f178e620f447d0f7df2cfc7c4c367a704f",
+    "pacaai/paca-api:0.20.2": {
+      "digest": "sha256:8b0a7f2a4c611e0b5fc097bd073f90928bbe1f1d98392d0a7981146e2a36f772",
       "platforms": [
         {
           "architecture": "amd64",
@@ -127,8 +127,8 @@
         }
       ]
     },
-    "pacaai/paca-web:0.20.0": {
-      "digest": "sha256:8d87224708c323547cabdfc821485c9afde2ca19e5515274203f512794933f5b",
+    "pacaai/paca-web:0.20.2": {
+      "digest": "sha256:d71c6eec583073186982a74e40db26ee69a1111c12b7dc29883a821f6bf90ad8",
       "platforms": [
         {
           "architecture": "amd64",
@@ -140,8 +140,8 @@
         }
       ]
     },
-    "pacaai/paca-realtime:0.20.0": {
-      "digest": "sha256:84bc9047a3ca332589e1eb1766e3b40b5450e2725a0e61a473fae6d3ae950f2f",
+    "pacaai/paca-realtime:0.20.2": {
+      "digest": "sha256:b11009ace9fa50718275c20d2f28e62b861bc7e9c1563d0a9718777091088bf5",
       "platforms": [
         {
           "architecture": "amd64",
@@ -155,17 +155,16 @@
     }
   },
   "api_build": {
-    "image": "paca-api-local:0.20.0-local.1",
-    "version": "v0.20.0+local.1",
-    "source": "services/api of this fork (identical to upstream v0.20.0 plus the patches below)",
+    "image": "paca-api-local:0.20.2-local.1",
+    "version": "v0.20.2+local.1",
+    "source": "services/api of this fork: upstream v0.20.2 plus the folder-scoped document-create patch",
     "patches": [
       "Document create is authorized on the document collection with its target folder, not on the whole project, so a folder-scoped docs:write role can create documents in its folder (router.go, doc_create_scope_test.go). Folder routes stay project-gated."
     ],
-    "builder_base": "golang:1.26-alpine@sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696",
-    "runtime_base": "alpine:3.21@sha256:87a4361f6c819618a6bafa2ed5228714cb0bb22195d2b49c95eb26799990128a",
-    "built_image_id": "sha256:c40784bc0c634b3ffdda9455f3b913cbf70cd3832ebd7134c9bc190ad400e8d6",
-    "built_at": "2026-11-06",
     "build": "python3 paca.py build-api (also run by paca.py init from the source tree)",
-    "note": "Base images are resolved at build time by the upstream Dockerfile tags; the digests above are what this build used. Builds are not byte-reproducible, so built_image_id is the image deployed on 2026-11-06, not a value a rebuild will match. pacaai/paca-api:0.20.0 below is kept as the upstream reference and rollback image."
-  }
+    "note": "Local fork API required to preserve folder-scoped document creation. Rebuild from this checkout; official API image is recorded only as an upstream reference.",
+    "built_image_id": "sha256:74ab9d2ade3ff3236c891e29d3f303c7f51d57e808eb8aa741d3e039816a34b4",
+    "built_at": "2026-11-06"
+  },
+  "pins_updated_at": "2026-11-06"
 }

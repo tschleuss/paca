@@ -180,10 +180,10 @@ def upload_pending():
     return str(destination)
 
 
-# The API runs from this fork's source: upstream v0.20.0 plus local patches listed
+# The API runs from this fork's source: upstream v0.20.2 plus local patches listed
 # in images.lock.json (api_build). Web and realtime stay upstream images.
-API_IMAGE = 'paca-api-local:0.20.0-local.1'
-API_VERSION = 'v0.20.0+local.1'
+API_IMAGE = 'paca-api-local:0.20.2-local.1'
+API_VERSION = 'v0.20.2+local.1'
 
 
 def build_api():

@@ -1,9 +1,18 @@
-# Synology LAN evaluation bundle
+# Synology Paca v0.20.2 deployment
 
-Read [REVIEW.md](REVIEW.md) before starting. Current images have unresolved high/critical package scan findings. The owner's NAS has stock 4 GB RAM. This bundle is for disposable-data evaluation; keep primary work in Trello for now.
+For this Mac-to-NAS move, follow [NAS-MIGRATION.md](NAS-MIGRATION.md). A private
+bundle includes the data, existing secrets, restore script and locally built AMD64
+API image. The NAS is a DS1821+ with 32 GB RAM at 192.168.0.146.
 
-Complete deployment, local TLS trust, agent configuration, migration, backup/restore and update instructions are in [HOW_TO.md in the fork](https://github.com/tschleuss/paca/blob/synology-lan/HOW_TO.md).
+The fork includes the folder-scoped document-create fix. Web/realtime are pinned
+upstream v0.20.2 images. Infrastructure pins are retained. Only the HTTPS gateway
+is published; agents execute on workstations and the NAS Docker socket is omitted.
 
-Run `sh scripts/init.sh` once, then replace network placeholders in `.env`. Never copy a test `.env` or test `state/` from another host. Only the HTTPS gateway port is published. Agents execute on workstations; the NAS Docker socket is never mounted.
+For a fresh empty installation only, run `sh scripts/init.sh`, set network values
+in `.env`, and build/import the fork API image listed in `images.lock.json`.
+For a migration, preserve the source secrets using the prepared bundle instead.
 
-See [VALIDATION.md](VALIDATION.md) for completed checks and [security-scan.json](security-scan.json) for package scan results. Workstation MCP client dependencies are locked in `agents/package-lock.json` with security overrides in `agents/package.json`.
+[REVIEW.md](REVIEW.md), [VALIDATION.md](VALIDATION.md) and security-scan.json record
+the historical v0.19.1 evaluation. They have not been repeated for v0.20.2 and
+should not be interpreted as current deployment verification. Source/Compose checks
+and successful AMD64/ARM64 API builds are recorded for the current update.

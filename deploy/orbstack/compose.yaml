@@ -105,7 +105,7 @@ services:
   api:
     <<: *common
     # Built locally from this fork (python3 paca.py build-api); see images.lock.json api_build.
-    image: paca-api-local:0.20.0-local.1
+    image: paca-api-local:0.20.2-local.1
     pull_policy: never
     mem_limit: 512m
     cpus: 1.0
@@ -128,6 +128,7 @@ services:
       AI_AGENT_URL: http://127.0.0.1:9
       PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL}
       CORS_ORIGINS: ${PUBLIC_URL:?Set PUBLIC_URL}
+      GIT_WEBHOOK_PUBLIC_URL: ${GIT_WEBHOOK_PUBLIC_URL:-}
       STORAGE_PROVIDER: rustfs
       STORAGE_ENDPOINT: 127.0.0.1:9000
       STORAGE_PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL}/storage
@@ -158,7 +159,7 @@ services:
 
   web:
     <<: *common
-    image: pacaai/paca-web:0.20.0@sha256:8d87224708c323547cabdfc821485c9afde2ca19e5515274203f512794933f5b
+    image: pacaai/paca-web:0.20.2@sha256:d71c6eec583073186982a74e40db26ee69a1111c12b7dc29883a821f6bf90ad8
     mem_limit: 128m
     cpus: 0.5
     read_only: true
@@ -171,7 +172,7 @@ services:
 
   realtime:
     <<: *common
-    image: pacaai/paca-realtime:0.20.0@sha256:84bc9047a3ca332589e1eb1766e3b40b5450e2725a0e61a473fae6d3ae950f2f
+    image: pacaai/paca-realtime:0.20.2@sha256:b11009ace9fa50718275c20d2f28e62b861bc7e9c1563d0a9718777091088bf5
     mem_limit: 256m
     cpus: 0.5
     cap_drop: [ALL]
