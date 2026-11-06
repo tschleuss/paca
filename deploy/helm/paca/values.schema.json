@@ -5,6 +5,7 @@
   "additionalProperties": true,
   "properties": {
     "publicUrl": { "type": "string" },
+    "gitWebhookPublicUrl": { "type": "string" },
     "imagePullSecrets": {
       "type": "array",
       "items": {
@@ -303,6 +304,7 @@
         "replicaCount": { "type": "integer", "minimum": 0 },
         "image": { "$ref": "#/definitions/image" },
         "resources": { "$ref": "#/definitions/resources" },
+        "autoHttps": { "type": "boolean" },
         "service": {
           "type": "object",
           "additionalProperties": true,

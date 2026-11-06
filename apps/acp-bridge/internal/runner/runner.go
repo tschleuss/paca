@@ -56,6 +56,11 @@ type conversationState struct {
 	// goroutine.
 	acpProvider string
 	command     []string
+	// model/effort are the agent's optional model and reasoning-effort
+	// selections ("" = provider default), captured with the command and
+	// applied once after session/new.
+	model  string
+	effort string
 
 	mu          sync.Mutex
 	turnRunning bool
@@ -64,6 +69,14 @@ type conversationState struct {
 	// lets Interrupt's grace-period timer stop waiting early instead of
 	// always sleeping the full interruptGracePeriod.
 	turnDone chan struct{}
+	// finishRequested is set by a pause_turn Interrupt (the composer's stop
+	// button) so the turn, once it unwinds, reports "finished" — nothing else
+	// writes that status for an ACP conversation, which has no
+	// "paused"/waiting-for-reply state. It is named for the status it causes
+	// while the wire message stays pause_turn. "finished" is terminal, so a
+	// stop_turn that follows must clear it or it would overwrite "stopped".
+	// Reset at the start of every turn. Guarded by mu.
+	finishRequested bool
 
 	// currentConversationID/currentProjectID identify the conversation whose
 	// turn is running right now. With per-task (or per-agent) session scope a
@@ -226,6 +239,17 @@ func (r *Runner) StartTurn(ctx context.Context, msg map[string]any) {
 	conversationID, _ := msg["conversation_id"].(string)
 	projectID, _ := msg["project_id"].(string)
 	message, _ := msg["message"].(string)
+	// What the transcript shows as the user's turn: the text they actually
+	// typed, without the skill trigger and context sections folded into
+	// message. An older server omits the key, so only then fall back to
+	// message; a present-but-blank value means no human said anything (a
+	// bare task assignment) and records no user_message unless context items
+	// were attached.
+	displayMessage, ok := msg["display_message"].(string)
+	if !ok {
+		displayMessage = message
+	}
+	contextItems, _ := msg["context_items"].([]any)
 	if conversationID == "" {
 		return
 	}
@@ -283,6 +307,11 @@ func (r *Runner) StartTurn(ctx context.Context, msg map[string]any) {
 		state.acpProvider = acpProvider
 		state.command = command
 	}
+	// Refreshed every turn (not just the first): they are only applied when a
+	// session is (re)spawned, but an idle-expired session respawns from the
+	// conversation's retained state and should see the agent's latest values.
+	state.model, _ = msg["acp_model"].(string)
+	state.effort, _ = msg["acp_effort"].(string)
 
 	state.turnRunning = true
 	state.currentConversationID = conversationID
@@ -291,16 +320,17 @@ func (r *Runner) StartTurn(ctx context.Context, msg map[string]any) {
 	turnCtx, cancel := context.WithCancel(context.Background())
 	state.turnCancel = cancel
 	state.turnDone = make(chan struct{})
+	state.finishRequested = false
 	state.mu.Unlock()
 
-	go r.runTurn(turnCtx, state, conversationID, projectID, message)
+	go r.runTurn(turnCtx, state, conversationID, projectID, message, displayMessage, contextItems)
 }
 
 // Interrupt handles a stop_turn/pause_turn message — both just interrupt
 // whatever turn is in flight; there's no sandbox lifecycle to additionally
 // tear down (unlike the cloud path's full stop-vs-pause distinction). A
 // no-op for an unknown or already-idle conversation.
-func (r *Runner) Interrupt(conversationID string) {
+func (r *Runner) Interrupt(conversationID string, pause bool) {
 	if conversationID == "" {
 		return
 	}
@@ -321,6 +351,12 @@ func (r *Runner) Interrupt(conversationID string) {
 	sessionID := state.sessionID
 	cancel := state.turnCancel
 	done := state.turnDone
+	// Assign (not just set) so a stop_turn that follows a pause_turn on the
+	// same turn clears it: the API already wrote "stopped" and a "finished"
+	// report would overwrite it.
+	if running {
+		state.finishRequested = pause
+	}
 	state.mu.Unlock()
 	if !running {
 		return
@@ -361,7 +397,7 @@ func (r *Runner) Interrupt(conversationID string) {
 	}()
 }
 
-func (r *Runner) runTurn(ctx context.Context, state *conversationState, conversationID, projectID, message string) {
+func (r *Runner) runTurn(ctx context.Context, state *conversationState, conversationID, projectID, message, displayMessage string, contextItems []any) {
 	defer r.finishTurn(state)
 
 	state.mu.Lock()
@@ -376,6 +412,7 @@ func (r *Runner) runTurn(ctx context.Context, state *conversationState, conversa
 			// same "no turn_status" treatment as an interrupt during
 			// client.Prompt below; Interrupt's own "still spawning" branch
 			// is exactly what cancelled ctx here.
+			r.reportFinishedIfRequested(state, conversationID, projectID)
 			return
 		}
 		r.log.Error("runner: failed to start ACP session", "conversation_id", conversationID, "error", err)
@@ -383,7 +420,7 @@ func (r *Runner) runTurn(ctx context.Context, state *conversationState, conversa
 		return
 	}
 
-	r.emitUserMessage(state, conversationID, projectID, message)
+	r.emitUserMessage(state, conversationID, projectID, displayMessage, contextItems)
 
 	stopReason, usage, err := client.Prompt(ctx, sessionID, message)
 	// Whatever's still buffered when the turn ends — successfully,
@@ -396,7 +433,14 @@ func (r *Runner) runTurn(ctx context.Context, state *conversationState, conversa
 			// Interrupted before the agent ever answered (still spawning,
 			// or it didn't honor session/cancel within the grace period
 			// and got killed) — no turn_status for this case, matching the
-			// cooperative-cancel case just below.
+			// cooperative-cancel case just below — except for a pause.
+			r.reportFinishedIfRequested(state, conversationID, projectID)
+			return
+		}
+		// The force-kill after the grace period closed the transport out
+		// from under Prompt, surfacing as a non-Canceled error; the user
+		// asked to stop, so don't report that as failed.
+		if r.reportFinishedIfRequested(state, conversationID, projectID) {
 			return
 		}
 		r.log.Error("runner: conversation turn failed", "conversation_id", conversationID, "error", err)
@@ -412,10 +456,28 @@ func (r *Runner) runTurn(ctx context.Context, state *conversationState, conversa
 		// error, so it doesn't hit the context.Canceled case above. The
 		// old bridge reports no turn_status for an interrupted turn
 		// either; dispatching stop_turn/pause_turn is treated
-		// server-side as sufficient on its own.
+		// server-side as sufficient on its own — except for a pause, whose
+		// "finished" status only the bridge can report.
+		r.reportFinishedIfRequested(state, conversationID, projectID)
 		return
 	}
 	r.reportStatus(state, conversationID, projectID, "finished", "")
+}
+
+// reportFinishedIfRequested reports "finished" for a turn that unwound because
+// of a pause_turn (the composer's stop button). An ACP conversation has no
+// "waiting for reply" state — only an ephemeral-sandbox agent does — so a
+// user-interrupted turn simply ends as finished. A stop_turn reports nothing:
+// the API already wrote "stopped", and a late "finished" would overwrite it.
+// It reports whether it sent the status.
+func (r *Runner) reportFinishedIfRequested(state *conversationState, conversationID, projectID string) bool {
+	state.mu.Lock()
+	requested := state.finishRequested
+	state.mu.Unlock()
+	if requested {
+		r.reportStatus(state, conversationID, projectID, "finished", "")
+	}
+	return requested
 }
 
 // ensureSession returns the conversation's ACP client and session id,
@@ -438,7 +500,7 @@ func (r *Runner) ensureSession(
 	// serves later turns of other conversations. Read the conversation in
 	// flight from state at each callback instead, so every event is
 	// attributed to the right Paca conversation thread.
-	client, err := acpclient.Spawn(state.command, r.workspace, func(u acpclient.Update) {
+	client, err := acpclient.Spawn(state.command, r.workspace, provider.ModelEnv(state.acpProvider, state.model), func(u acpclient.Update) {
 		cid, pid := state.currentIDs()
 		r.handleUpdate(state, cid, pid, u)
 	}, r.log)
@@ -451,11 +513,12 @@ func (r *Runner) ensureSession(
 		return nil, "", err
 	}
 
-	sessionID, modes, err := client.NewSession(ctx, r.workspace)
+	info, err := client.NewSessionInfo(ctx, r.workspace)
 	if err != nil {
 		_ = client.Close()
 		return nil, "", err
 	}
+	sessionID, modes := info.SessionID, info.Modes
 
 	if mode := provider.PermissionMode(state.acpProvider); mode != "" && modes.Offers(mode) {
 		if err := client.SetMode(ctx, sessionID, mode); err != nil {
@@ -464,11 +527,67 @@ func (r *Runner) ensureSession(
 		}
 	}
 
+	r.applyModelAndEffort(ctx, client, state, info, conversationID)
+
 	state.mu.Lock()
 	state.client = client
 	state.sessionID = sessionID
 	state.mu.Unlock()
 	return client, sessionID, nil
+}
+
+// applyModelAndEffort requests the agent's configured model and reasoning
+// effort on a freshly created session. The values are passed to the agent
+// exactly as the user entered them — the agent validates them (and resolves
+// aliases itself). Best-effort like the permission mode: a rejected value is
+// logged and skipped rather than failing the turn, so a stale or mistyped
+// selection degrades to the provider default.
+func (r *Runner) applyModelAndEffort(
+	ctx context.Context, client *acpclient.Client, state *conversationState,
+	info *acpclient.SessionInfo, conversationID string,
+) {
+	// Providers that take the model through their environment (see
+	// provider.ModelEnv) already have it from spawn time.
+	model := state.model
+	modelEnv := provider.ModelEnv(state.acpProvider, model)
+	if model != "" && modelEnv == nil {
+		var err error
+		if opt, ok := info.ConfigOptionFor("model", "model"); ok {
+			var refreshed []acpclient.ConfigOption
+			// A model change can add/remove the effort option (levels
+			// depend on the model), so re-read the options it returns.
+			if refreshed, err = client.SetConfigOption(ctx, info.SessionID, opt.ID, model); err == nil && len(refreshed) > 0 {
+				info.ConfigOptions = refreshed
+			}
+		} else if info.Models != nil {
+			err = client.SetModel(ctx, info.SessionID, model)
+		} else {
+			err = fmt.Errorf("session offers no model selection")
+		}
+		if err != nil {
+			r.log.Warn("runner: failed to set model; using provider default",
+				"conversation_id", conversationID, "model", model, "error", err)
+		} else {
+			r.log.Info("runner: model set", "conversation_id", conversationID, "model", model)
+		}
+	} else if model != "" {
+		r.log.Info("runner: model set via environment", "conversation_id", conversationID,
+			"model", model, "env", modelEnv)
+	}
+	// If the model change above failed, effort is still applied to whatever
+	// model the session is on; an unsupported level is just logged below.
+	if effort := state.effort; effort != "" {
+		opt, ok := info.ConfigOptionFor("thought_level", "effort", "reasoning_effort")
+		if !ok {
+			r.log.Warn("runner: session exposes no effort setting (the selected model may not support one); using provider default",
+				"conversation_id", conversationID, "effort", effort)
+		} else if _, err := client.SetConfigOption(ctx, info.SessionID, opt.ID, effort); err != nil {
+			r.log.Warn("runner: failed to set effort; using provider default",
+				"conversation_id", conversationID, "effort", effort, "error", err)
+		} else {
+			r.log.Info("runner: effort set", "conversation_id", conversationID, "effort", effort, "option", opt.ID)
+		}
+	}
 }
 
 func (r *Runner) finishTurn(state *conversationState) {
@@ -666,14 +785,23 @@ func (r *Runner) flushChunks(state *conversationState, conversationID, projectID
 	}
 }
 
-func (r *Runner) emitUserMessage(state *conversationState, conversationID, projectID, message string) {
+func (r *Runner) emitUserMessage(state *conversationState, conversationID, projectID, message string, contextItems []any) {
 	text := strings.TrimSpace(message)
-	if text == "" {
+	// Attached context alone is still worth recording (badges render without
+	// text); only skip when neither a human's words nor context exist.
+	if text == "" && len(contextItems) == 0 {
 		return
 	}
-	payload, _ := json.Marshal(map[string]any{
+	fields := map[string]any{
 		"content": map[string]any{"type": "text", "text": text},
-	})
+	}
+	// Persisted beside the text, as the llm path does, so the transcript can
+	// render the attached-context badges the prompt-wrapped message no
+	// longer carries.
+	if len(contextItems) > 0 {
+		fields["context_items"] = contextItems
+	}
+	payload, _ := json.Marshal(fields)
 	r.emitEvent(state, conversationID, projectID, "user_message", "user", payload)
 }
 

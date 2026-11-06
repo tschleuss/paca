@@ -53,13 +53,16 @@ type Providers interface {
 
 // Service is the Git integration use-case layer.
 type Service struct {
-	store     gitdom.Store
-	providers Providers
-	now       func() time.Time
-	publicURL string // the instance's externally reachable base URL, no trailing slash
+	store       gitdom.Store
+	providers   Providers
+	now         func() time.Time
+	publicURL   string // the instance's externally reachable base URL, no trailing slash
+	hookBaseURL string // where deliveries go when not publicURL; empty: publicURL
 
-	namer AgentNamer // optional: names the acting agent in comment footers
-	dir   AgentDirectory
+	namer          AgentNamer                                             // optional: names the acting agent in comment footers
+	automation     AutomationEmitter                                      // optional: feeds the Git automation triggers
+	taskGitChanged func(ctx context.Context, projectID, taskID uuid.UUID) // optional: live refresh of a task's Git panel
+	dir            AgentDirectory
 
 	mu     sync.Mutex
 	cache  map[credKey]cachedCred
@@ -385,6 +388,7 @@ func (s *Service) HandleWebhook(ctx context.Context, endpointKey string, d Deliv
 				_ = s.store.DeleteInboxEvent(ctx, ev.ID, repo.ID)
 				return nil, err
 			}
+			s.emitEventTriggers(ctx, repo, ev)
 		}
 	}
 	return res, nil
@@ -492,6 +496,9 @@ func (s *Service) saveChangeRequest(ctx context.Context, repo *gitdom.Repository
 	if err != nil {
 		return nil, err
 	}
+	// The state the upsert replaced tells a real transition (open -> merged)
+	// from a redelivery, for the git.pr_state_changed trigger.
+	previous := saved.PreviousState
 	seen := map[uuid.UUID]bool{}
 	for _, ref := range findTaskRefs(cr.HeadRef + " " + cr.Title) {
 		task, found, err := s.store.FindTaskByRef(ctx, repo.ProjectID, ref.key, ref.number)
@@ -502,15 +509,16 @@ func (s *Service) saveChangeRequest(ctx context.Context, repo *gitdom.Repository
 			continue
 		}
 		seen[task] = true
-		if err := s.store.LinkTaskToChangeRequest(ctx, task, saved.ID); err != nil {
+		if err := s.linkChangeRequest(ctx, repo, task, saved); err != nil {
 			return nil, err
 		}
 		if cr.HeadRef != "" {
-			if err := s.store.LinkTaskBranch(ctx, task, repo.ID, cr.HeadRef); err != nil {
+			if err := s.linkBranch(ctx, repo, task, cr.HeadRef); err != nil {
 				return nil, err
 			}
 		}
 	}
+	s.emitStateChange(ctx, repo, previous, saved)
 	return saved, nil
 }
 
@@ -683,9 +691,28 @@ func (s *Service) UnlinkRepository(ctx context.Context, projectID, repositoryID 
 	return nil
 }
 
-// WithPublicURL sets the instance's public base URL, which webhook endpoints
-// and setup redirects are built from.
+// WithPublicURL sets the instance's public base URL, which setup redirects,
+// browser links and (unless WithWebhookBaseURL overrides it) webhook endpoints
+// are built from.
 func (s *Service) WithPublicURL(u string) *Service {
 	s.publicURL = strings.TrimRight(strings.TrimSpace(u), "/")
 	return s
+}
+
+// WithWebhookBaseURL sets the origin platform deliveries are sent to when it is
+// not the browser's. A public edge that reaches only the UI and setup paths
+// cannot serve the webhook path, and PUBLIC_URL cannot say otherwise without
+// moving the browser, the setup callback and the passkey origin with it.
+func (s *Service) WithWebhookBaseURL(u string) *Service {
+	s.hookBaseURL = strings.TrimRight(strings.TrimSpace(u), "/")
+	return s
+}
+
+// webhookOrigin is where providers are told to deliver: the webhook base URL
+// when one is configured, the public URL otherwise.
+func (s *Service) webhookOrigin() string {
+	if s.hookBaseURL != "" {
+		return s.hookBaseURL
+	}
+	return s.publicURL
 }

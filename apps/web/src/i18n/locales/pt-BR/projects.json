@@ -47,18 +47,19 @@
 				"connectionHelp": "Escolha uma quando várias conexões enxergarem o repositório, por exemplo duas organizações.",
 				"description": "Descrição (opcional)",
 				"descriptionPlaceholder": "ex.: Cliente web do produto",
-				"descriptionHelp": "Diz aos agentes para que serve este repositório, para que escolham o correto. Até 1000 caracteres."
+				"descriptionHelp": "Diz aos agentes para que serve este repositório, para que escolham o correto. Até 1000 caracteres.",
+				"title": "Vincular um repositório",
+				"dialogDescription": "Escolha a plataforma e o repositório com os quais os agentes deste projeto vão trabalhar."
 			},
 			"picker": {
 				"browse": "Explorar repositórios",
-				"hide": "Ocultar lista",
-				"search": "Pesquisar repositórios",
-				"unsupported": "Esta conexão não consegue listar repositórios. Digite o caminho ou a URL acima.",
-				"error": "Não foi possível carregar a lista. Você ainda pode digitar o caminho ou a URL acima.",
+				"unsupported": "Esta conexão não consegue listar repositórios. Feche esta janela e digite o caminho ou a URL.",
+				"error": "Não foi possível carregar a lista. Feche esta janela e digite o caminho ou a URL.",
 				"empty": "Nenhum repositório encontrado.",
-				"loadMore": "Carregar mais",
 				"linked": "Vinculado",
-				"private": "Privado"
+				"private": "Privado",
+				"title": "Explorar repositórios",
+				"description": "Role por tudo o que esta conexão enxerga e escolha um para preencher o repositório."
 			},
 			"unlink": {
 				"button": "Desvincular",
@@ -723,6 +724,19 @@
 				"noContextResults": "Nenhum resultado encontrado",
 				"contextSearchMinChars": "Digite pelo menos 2 caracteres para buscar"
 			}
+		},
+		"acpModelEffort": {
+			"modelLabel": "Modelo",
+			"modelPlaceholder": "ex.: claude-sonnet-4-5",
+			"modelHint": "Nome de modelo opcional, enviado ao provedor exatamente como digitado. Deixe em branco para usar o padrão do provedor.",
+			"effortLabel": "Esforço de raciocínio",
+			"effortDefault": "Padrão do provedor",
+			"effort_low": "Baixo",
+			"effort_medium": "Médio",
+			"effort_high": "Alto",
+			"effort_xhigh": "Muito alto",
+			"effort_max": "Máximo",
+			"effortHint": "Opcional. Aplicado apenas se o provedor oferecer o nível escolhido."
 		}
 	},
 	"environments": {
@@ -2509,7 +2523,8 @@
 				"taskEvents": "Eventos de tarefas",
 				"sprintEvents": "Eventos de sprints",
 				"scheduleWebhook": "Agendamento e webhook"
-			}
+			},
+			"git": "Git"
 		},
 		"nodeKind": {
 			"trigger": "Gatilho",
@@ -2708,7 +2723,9 @@
 				"cronSchedule": "Executa {{expression}}",
 				"webhookReady": "Webhook configurado",
 				"callApiSummary": "{{method}} {{host}}",
-				"jevNoulTrue": "Sim"
+				"jevNoulTrue": "Sim",
+				"pluginField": "{{field}}: {{value}}",
+				"waitMinutes": "Aguardar {{minutes}} min"
 			},
 			"jev": {
 				"answerTypeLabel": "Tipo de resposta",
@@ -2734,7 +2751,8 @@
 				"confidenceThresholdLabel": "Limite de confiança",
 				"trueThresholdLabel": "Limite de “verdadeiro”",
 				"thresholdHint": "Abaixo disso, o fluxo de trabalho segue o ramo Else em vez de confiar na resposta."
-			}
+			},
+			"noConfigNeeded": "Este nó não precisa de configuração: ele faz seu trabalho assim que a automação chega a ele."
 		},
 		"runHistory": {
 			"title": "Histórico de execuções",

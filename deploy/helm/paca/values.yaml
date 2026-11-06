@@ -15,6 +15,12 @@
 # sensible for that case.
 publicUrl: ""
 
+# gitWebhookPublicUrl is the origin Git providers deliver webhooks to, when that
+# must not be publicUrl (e.g. "https://paca-hooks.example.com"). Set it when the
+# public edge reaches only the browser and setup paths. Route this host to the
+# API separately. Empty: publicUrl, which also serves callbacks and passkeys.
+gitWebhookPublicUrl: ""
+
 imagePullSecrets: []
 
 # ---------------------------------------------------------------------------
@@ -507,6 +513,12 @@ gateway:
     # quick start.
     type: ClusterIP
     port: 80
+  # Caddy automatic HTTPS when ingress.enabled is false and publicUrl is set.
+  # Set false to serve plain HTTP on :80 behind external TLS termination
+  # (Istio VirtualService, Gateway API route, tunnel) without creating an
+  # Ingress. Does not change publicUrl or api.cookieSecure. Ignored (HTTP is
+  # used) when ingress.enabled is true.
+  autoHttps: true
 
 # ---------------------------------------------------------------------------
 # SSH access / Port forwarding host display — see agentRunner.sshBastion/

@@ -47,18 +47,19 @@
 				"connectionHelp": "複数の接続（たとえば 2 つの組織）がリポジトリを参照できる場合は、1 つ選択してください。",
 				"description": "説明（任意）",
 				"descriptionPlaceholder": "例: プロダクトの Web クライアント",
-				"descriptionHelp": "このリポジトリの用途をエージェントに伝え、適切なリポジトリを選べるようにします。1000 文字まで。"
+				"descriptionHelp": "このリポジトリの用途をエージェントに伝え、適切なリポジトリを選べるようにします。1000 文字まで。",
+				"title": "リポジトリをリンク",
+				"dialogDescription": "このプロジェクトのエージェントが作業するプラットフォームとリポジトリを選択します。"
 			},
 			"picker": {
 				"browse": "リポジトリを参照",
-				"hide": "一覧を隠す",
-				"search": "リポジトリを検索",
-				"unsupported": "この接続ではリポジトリの一覧を取得できません。上にパスまたは URL を入力してください。",
-				"error": "一覧を読み込めませんでした。上にパスまたは URL を入力することもできます。",
+				"unsupported": "この接続ではリポジトリを一覧できません。このウィンドウを閉じて、パスまたは URL を入力してください。",
+				"error": "一覧を読み込めませんでした。このウィンドウを閉じて、パスまたは URL を入力してください。",
 				"empty": "リポジトリが見つかりません。",
-				"loadMore": "さらに読み込む",
 				"linked": "リンク済み",
-				"private": "プライベート"
+				"private": "プライベート",
+				"title": "リポジトリを参照",
+				"description": "この接続から見えるものをスクロールして確認し、1 つ選んでリポジトリ欄に入力します。"
 			},
 			"unlink": {
 				"button": "リンク解除",
@@ -723,6 +724,19 @@
 				"noContextResults": "結果が見つかりません",
 				"contextSearchMinChars": "検索するには2文字以上入力してください"
 			}
+		},
+		"acpModelEffort": {
+			"modelLabel": "モデル",
+			"modelPlaceholder": "例: claude-sonnet-4-5",
+			"modelHint": "実行に使用するモデル名（任意）。入力したとおりにプロバイダーへ送信されます。空欄の場合はプロバイダーのデフォルトを使用します。",
+			"effortLabel": "推論の労力",
+			"effortDefault": "プロバイダーのデフォルト",
+			"effort_low": "低",
+			"effort_medium": "中",
+			"effort_high": "高",
+			"effort_xhigh": "非常に高",
+			"effort_max": "最大",
+			"effortHint": "任意。プロバイダーが選択したレベルに対応している場合のみ適用されます。"
 		}
 	},
 	"environments": {
@@ -2509,7 +2523,8 @@
 				"taskEvents": "タスクイベント",
 				"sprintEvents": "スプリントイベント",
 				"scheduleWebhook": "スケジュールとWebhook"
-			}
+			},
+			"git": "Git"
 		},
 		"nodeKind": {
 			"trigger": "トリガー",
@@ -2708,7 +2723,9 @@
 				"cronSchedule": "{{expression}} に実行",
 				"webhookReady": "Webhook設定済み",
 				"callApiSummary": "{{method}} {{host}}",
-				"jevNoulTrue": "はい"
+				"jevNoulTrue": "はい",
+				"pluginField": "{{field}}: {{value}}",
+				"waitMinutes": "{{minutes}}分待機"
 			},
 			"jev": {
 				"answerTypeLabel": "回答タイプ",
@@ -2734,7 +2751,8 @@
 				"confidenceThresholdLabel": "信頼度のしきい値",
 				"trueThresholdLabel": "「真」のしきい値",
 				"thresholdHint": "これを下回ると、ワークフローは回答を信頼せずElse分岐に従います。"
-			}
+			},
+			"noConfigNeeded": "このノードに設定は不要です。オートメーションがここに到達すると自動的に実行されます。"
 		},
 		"runHistory": {
 			"title": "実行履歴",

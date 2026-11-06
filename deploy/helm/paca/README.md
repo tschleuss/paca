@@ -45,6 +45,7 @@ them.
 | Key | Description | Default |
 |---|---|---|
 | `publicUrl` | Externally reachable base URL for this deployment (e.g. `https://paca.example.com`). Leave empty for a ClusterIP/NodePort-only deployment. | `""` |
+| `gitWebhookPublicUrl` | Optional separate origin for Git webhooks (e.g. `https://paca-hooks.example.com`). Route it to the API separately; the bundled gateway and ingress serve only their configured host. | `""` (use `publicUrl`) |
 | `imagePullSecrets` | Image pull secrets applied to every Pod this chart creates | `[]` |
 
 ### Secrets
@@ -191,6 +192,7 @@ added.
 | `gateway.resources` | Requests/limits for the gateway Pod | see `values.yaml` |
 | `gateway.service.type` | `ClusterIP` (pair with `ingress.enabled`) or `LoadBalancer` (standalone, no ingress controller needed) | `ClusterIP` |
 | `gateway.service.port` | | `80` |
+| `gateway.autoHttps` | Caddy automatic HTTPS for `publicUrl`'s host when `ingress.enabled` is false. Set `false` to serve plain HTTP behind external TLS termination (Istio, Gateway API, tunnel) with no Ingress; `publicUrl` and `api.cookieSecure` are unchanged, so the external proxy must terminate TLS (cookies stay `Secure`) | `true` |
 
 ### Ingress (optional)
 

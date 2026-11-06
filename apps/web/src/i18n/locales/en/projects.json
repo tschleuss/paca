@@ -47,18 +47,19 @@
 				"connectionHelp": "Choose one when several connections can see the repository, for example two organizations.",
 				"description": "Description (optional)",
 				"descriptionPlaceholder": "e.g. Web client of the product",
-				"descriptionHelp": "Tells agents what this repository is for, so they pick the right one. Up to 1000 characters."
+				"descriptionHelp": "Tells agents what this repository is for, so they pick the right one. Up to 1000 characters.",
+				"title": "Link a repository",
+				"dialogDescription": "Pick the platform and repository this project's agents should work with."
 			},
 			"picker": {
 				"browse": "Browse repositories",
-				"hide": "Hide list",
-				"search": "Search repositories",
-				"unsupported": "This connection can't list repositories. Type the path or URL above.",
-				"error": "Couldn't load the list. You can still type the path or URL above.",
+				"unsupported": "This connection can't list repositories. Close this window and type the path or URL instead.",
+				"error": "Couldn't load the list. Close this window and type the path or URL instead.",
 				"empty": "No repositories found.",
-				"loadMore": "Load more",
 				"linked": "Linked",
-				"private": "Private"
+				"private": "Private",
+				"title": "Browse repositories",
+				"description": "Scroll through everything this connection can see, then pick one to fill in the repository."
 			},
 			"unlink": {
 				"button": "Unlink",
@@ -723,6 +724,19 @@
 				"noContextResults": "No results found",
 				"contextSearchMinChars": "Type at least 2 characters to search"
 			}
+		},
+		"acpModelEffort": {
+			"modelLabel": "Model",
+			"modelPlaceholder": "e.g. claude-sonnet-4-5",
+			"modelHint": "Optional model name to run with, sent to the provider exactly as typed. Leave empty to use the provider's default.",
+			"effortLabel": "Reasoning effort",
+			"effortDefault": "Provider default",
+			"effort_low": "Low",
+			"effort_medium": "Medium",
+			"effort_high": "High",
+			"effort_xhigh": "Extra high",
+			"effort_max": "Max",
+			"effortHint": "Optional. Applied only if the provider supports the chosen level."
 		}
 	},
 	"environments": {
@@ -2509,7 +2523,8 @@
 				"taskEvents": "Task events",
 				"sprintEvents": "Sprint events",
 				"scheduleWebhook": "Schedule & webhook"
-			}
+			},
+			"git": "Git"
 		},
 		"nodeKind": {
 			"trigger": "Trigger",
@@ -2736,8 +2751,11 @@
 				"branchFallback": "Branch {{n}}",
 				"cronSchedule": "Runs {{expression}}",
 				"webhookReady": "Webhook configured",
-				"callApiSummary": "{{method}} {{host}}"
-			}
+				"callApiSummary": "{{method}} {{host}}",
+				"pluginField": "{{field}}: {{value}}",
+				"waitMinutes": "Wait {{minutes}}m"
+			},
+			"noConfigNeeded": "This node needs no configuration — it does its job as soon as the automation reaches it."
 		},
 		"runHistory": {
 			"title": "Run history",

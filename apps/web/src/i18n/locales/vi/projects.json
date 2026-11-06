@@ -47,18 +47,19 @@
 				"connectionHelp": "Hãy chọn một kết nối khi có nhiều kết nối cùng thấy kho, ví dụ hai tổ chức.",
 				"description": "Mô tả (không bắt buộc)",
 				"descriptionPlaceholder": "ví dụ: Ứng dụng web của sản phẩm",
-				"descriptionHelp": "Cho các tác nhân biết kho mã này dùng để làm gì để chọn đúng kho. Tối đa 1000 ký tự."
+				"descriptionHelp": "Cho các tác nhân biết kho mã này dùng để làm gì để chọn đúng kho. Tối đa 1000 ký tự.",
+				"title": "Liên kết kho mã",
+				"dialogDescription": "Chọn nền tảng và kho mã mà các tác nhân của dự án này sẽ làm việc cùng."
 			},
 			"picker": {
 				"browse": "Duyệt kho mã",
-				"hide": "Ẩn danh sách",
-				"search": "Tìm kho mã",
-				"unsupported": "Kết nối này không thể liệt kê kho mã. Hãy nhập đường dẫn hoặc URL ở trên.",
-				"error": "Không tải được danh sách. Bạn vẫn có thể nhập đường dẫn hoặc URL ở trên.",
+				"unsupported": "Kết nối này không liệt kê được kho mã. Hãy đóng cửa sổ này và nhập đường dẫn hoặc URL.",
+				"error": "Không tải được danh sách. Hãy đóng cửa sổ này và nhập đường dẫn hoặc URL.",
 				"empty": "Không tìm thấy kho mã.",
-				"loadMore": "Tải thêm",
 				"linked": "Đã liên kết",
-				"private": "Riêng tư"
+				"private": "Riêng tư",
+				"title": "Duyệt kho mã",
+				"description": "Cuộn qua mọi kho mà kết nối này nhìn thấy, rồi chọn một kho để điền vào ô kho mã."
 			},
 			"unlink": {
 				"button": "Hủy liên kết",
@@ -723,6 +724,19 @@
 				"noContextResults": "Không tìm thấy kết quả",
 				"contextSearchMinChars": "Nhập ít nhất 2 ký tự để tìm kiếm"
 			}
+		},
+		"acpModelEffort": {
+			"modelLabel": "Mô hình",
+			"modelPlaceholder": "vd: claude-sonnet-4-5",
+			"modelHint": "Tên mô hình tùy chọn, được gửi đến nhà cung cấp đúng như bạn nhập. Để trống để dùng mặc định của nhà cung cấp.",
+			"effortLabel": "Mức độ suy luận",
+			"effortDefault": "Mặc định của nhà cung cấp",
+			"effort_low": "Thấp",
+			"effort_medium": "Trung bình",
+			"effort_high": "Cao",
+			"effort_xhigh": "Rất cao",
+			"effort_max": "Tối đa",
+			"effortHint": "Tùy chọn. Chỉ áp dụng nếu nhà cung cấp hỗ trợ mức đã chọn."
 		}
 	},
 	"environments": {
@@ -2509,7 +2523,8 @@
 				"taskEvents": "Sự kiện công việc",
 				"sprintEvents": "Sự kiện sprint",
 				"scheduleWebhook": "Lịch và webhook"
-			}
+			},
+			"git": "Git"
 		},
 		"nodeKind": {
 			"trigger": "Trình kích hoạt",
@@ -2708,7 +2723,9 @@
 				"cronSchedule": "Chạy {{expression}}",
 				"webhookReady": "Đã cấu hình webhook",
 				"callApiSummary": "{{method}} {{host}}",
-				"jevNoulTrue": "Có"
+				"jevNoulTrue": "Có",
+				"pluginField": "{{field}}: {{value}}",
+				"waitMinutes": "Chờ {{minutes}} phút"
 			},
 			"jev": {
 				"answerTypeLabel": "Loại câu trả lời",
@@ -2734,7 +2751,8 @@
 				"confidenceThresholdLabel": "Ngưỡng độ tin cậy",
 				"trueThresholdLabel": "Ngưỡng \"đúng\"",
 				"thresholdHint": "Dưới ngưỡng này, quy trình sẽ đi theo nhánh Else thay vì tin tưởng câu trả lời."
-			}
+			},
+			"noConfigNeeded": "Nút này không cần cấu hình — nó tự thực hiện ngay khi tự động hóa chạy đến."
 		},
 		"runHistory": {
 			"title": "Lịch sử chạy",
