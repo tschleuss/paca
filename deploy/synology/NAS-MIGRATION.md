@@ -86,3 +86,18 @@ Keep the encrypted original archive and recovery key. Once the migration is
 confirmed, remove the decrypted recovery staging files from both machines using
 your normal file management, and configure scheduled NAS backups separately.
 The Mac's existing schedule backs up only the Mac instance.
+
+## Resume after the NanoCPUs error
+
+This DSM kernel does not support CPU CFS quotas. The Synology Compose therefore
+omits `cpus` limits; memory limits remain. If the first restore stopped at
+`NanoCPUs can not be set`, file extraction has already run but PostgreSQL has not
+started. With the updated bundle files, resume only the database phase:
+
+```sh
+cd /volume2/docker/paca
+sudo sh scripts/restore-orbstack.sh --resume-database
+```
+
+This checks for an empty database and refuses to overwrite an existing restore.
+It leaves the restored object storage and other files in place.

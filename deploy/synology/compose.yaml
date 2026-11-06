@@ -15,7 +15,6 @@ services:
     <<: *common
     image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     mem_limit: 512m
-    cpus: 1.0
     shm_size: 128m
     environment:
       POSTGRES_DB: paca
@@ -32,7 +31,6 @@ services:
     <<: *common
     image: valkey/valkey:8-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
     mem_limit: 1g
-    cpus: 0.5
     # Fail writes at capacity instead of evicting queue/stream data.
     environment:
       VALKEY_PASSWORD: ${VALKEY_PASSWORD:?Set VALKEY_PASSWORD}
@@ -61,7 +59,6 @@ services:
     <<: *common
     image: rustfs/rustfs:1.0.0-rc.6@sha256:97171b3d72cd47dc81000f92ea84de25608bfc35a94c965501afaeb5d99f6035
     mem_limit: 1536m
-    cpus: 1.0
     environment:
       RUSTFS_ACCESS_KEY: ${STORAGE_ACCESS_KEY_ID:?Run scripts/init.sh}
       RUSTFS_SECRET_KEY: ${STORAGE_SECRET_ACCESS_KEY:?Run scripts/init.sh}
@@ -83,7 +80,6 @@ services:
     image: paca-api-local:0.20.2-local.1-amd64
     pull_policy: never
     mem_limit: 512m
-    cpus: 1.0
     environment:
       ENV: production
       PORT: "8080"
@@ -136,7 +132,6 @@ services:
     <<: *common
     image: pacaai/paca-web:0.20.2@sha256:d71c6eec583073186982a74e40db26ee69a1111c12b7dc29883a821f6bf90ad8
     mem_limit: 128m
-    cpus: 0.5
     read_only: true
     cap_drop: [ALL]
     # The upstream Caddy executable carries this file capability.
@@ -149,7 +144,6 @@ services:
     <<: *common
     image: pacaai/paca-realtime:0.20.2@sha256:b11009ace9fa50718275c20d2f28e62b861bc7e9c1563d0a9718777091088bf5
     mem_limit: 256m
-    cpus: 0.5
     cap_drop: [ALL]
     environment:
       PORT: "3001"
@@ -167,7 +161,6 @@ services:
     init: true
     image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
     mem_limit: 128m
-    cpus: 0.5
     networks: [backend, edge]
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]

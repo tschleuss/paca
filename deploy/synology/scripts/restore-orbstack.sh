@@ -9,11 +9,22 @@ test -f .env
 test -f recovery/database.dump
 test -f recovery/state.tar.gz
 test -f api-amd64.tar
-if [ -d state ] && [ -n "$(ls -A state)" ]; then
+resume=0
+case "${1:-}" in
+  '') ;;
+  --resume-database) resume=1 ;;
+  *) echo 'Usage: restore-orbstack.sh [--resume-database]' >&2; exit 1 ;;
+esac
+if [ -e .restored-from-orbstack ]; then
+  echo 'Restore is already complete. Start the project in Container Manager.' >&2
+  exit 1
+fi
+if [ "$resume" = 0 ] && [ -d state ] && [ -n "$(ls -A state)" ]; then
   echo 'state/ already contains files. Refusing to overwrite an existing deployment.' >&2
   exit 1
 fi
 sha256sum -c SHA256SUMS
+if [ "$resume" = 0 ]; then
 docker load -i api-amd64.tar
 dc config -q
 dc pull postgres valkey rustfs rustfs-init web realtime gateway
@@ -24,13 +35,24 @@ dbimage=postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad5
 docker run --rm --network none --user 0:0 --entrypoint sh \
   -v "$PWD/recovery:/recovery:ro" -v "$PWD/state:/state" \
   "$dbimage" -ec 'tar -xzf /recovery/state.tar.gz -C /state ./rustfs ./valkey ./plugins ./caddy'
+else
+  # Resume after a container-creation failure without extracting over storage.
+  for path in state/rustfs state/valkey state/plugins state/caddy state/postgres; do
+    test -d "$path" || { echo "Missing restored directory: $path" >&2; exit 1; }
+  done
+  running=$(dc ps --status running --services)
+  for service in $running; do
+    [ "$service" = postgres ] || { echo "Stop $service before resuming database restore." >&2; exit 1; }
+  done
+  dc config -q
+fi
 dc up -d --wait --wait-timeout 180 postgres
 tables=$(dc exec -T postgres psql -U paca -d paca -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
 if [ "$tables" != 0 ]; then
   echo 'Database is not empty. Refusing to restore.' >&2
   exit 1
 fi
-dc exec -T postgres pg_restore --exit-on-error --no-owner --no-privileges -U paca -d paca < recovery/database.dump
+dc exec -T postgres pg_restore --exit-on-error --single-transaction --no-owner --no-privileges -U paca -d paca < recovery/database.dump
 dc stop postgres
 touch .restored-from-orbstack
 echo 'Restore complete. Create the paca-synology project in Container Manager using this directory and its existing docker-compose.yml, then start it.'
