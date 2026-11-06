@@ -98,5 +98,27 @@ class BackupTargetTests(unittest.TestCase):
                 self.assertIn('skipped', json.loads((Path(temp) / 'backup-status.json').read_text())['result'])
 
 
+class ApiImageTests(unittest.TestCase):
+    def test_compose_runs_the_locally_built_api_and_never_pulls_it(self):
+        compose = (Path(paca.SOURCE) / 'compose.yaml').read_text()
+        api = compose.split('\n  api:\n', 1)[1].split('\n  web:\n', 1)[0]
+        self.assertIn('image: ' + paca.API_IMAGE + '\n', api)
+        self.assertIn('pull_policy: never', api)
+        lock = json.loads((Path(paca.SOURCE) / 'images.lock.json').read_text())
+        self.assertEqual(lock['api_build']['image'], paca.API_IMAGE)
+        self.assertEqual(lock['api_build']['version'], paca.API_VERSION)
+
+    def test_build_uses_this_checkouts_api_source(self):
+        with patch.object(paca, 'run') as run:
+            paca.build_api()
+        args = [str(a) for a in run.call_args.args[0]]
+        self.assertEqual(args[-1], str(Path(paca.SOURCE).parent.parent / 'services' / 'api'))
+        self.assertIn(paca.API_IMAGE, args)
+
+    def test_build_refuses_without_the_source_tree(self):
+        with patch.object(paca, 'SOURCE', paca.BASE), self.assertRaises(RuntimeError):
+            paca.build_api()
+
+
 if __name__ == '__main__':
     unittest.main()

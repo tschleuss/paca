@@ -153,5 +153,19 @@
         }
       ]
     }
+  },
+  "api_build": {
+    "image": "paca-api-local:0.20.0-local.1",
+    "version": "v0.20.0+local.1",
+    "source": "services/api of this fork (identical to upstream v0.20.0 plus the patches below)",
+    "patches": [
+      "Document create is authorized on the document collection with its target folder, not on the whole project, so a folder-scoped docs:write role can create documents in its folder (router.go, doc_create_scope_test.go). Folder routes stay project-gated."
+    ],
+    "builder_base": "golang:1.26-alpine@sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696",
+    "runtime_base": "alpine:3.21@sha256:87a4361f6c819618a6bafa2ed5228714cb0bb22195d2b49c95eb26799990128a",
+    "built_image_id": "sha256:f0c1d59d6bafc5494330af880fd64d6d2ae4020fdc14d4ef0ccdfe66eeb1cf02",
+    "built_at": "2026-11-06",
+    "build": "python3 paca.py build-api (also run by paca.py init from the source tree)",
+    "note": "Base images are resolved at build time by the upstream Dockerfile tags; the digests above are what this build used. pacaai/paca-api:0.20.0 below is kept as the upstream reference and rollback image."
   }
 }

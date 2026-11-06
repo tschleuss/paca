@@ -184,7 +184,8 @@ gateway to apply `init`; an ordinary container restart cannot change that option
 
 Before an update, create/verify a backup, review upstream changes and migration requirements, then update explicit image digests in `compose.yaml` and `images.lock.json` and review workstation MCP compatibility. The generic workstation client is in `../synology/agents/`; Stash has its own separately versioned curated adapter. The Synology evaluation's own Compose and image lock remain a separate historical deployment. Do not use `latest`, Watchtower or the upstream installer on this customized directory. Do not run an old API image against a newly migrated database to roll back: restore the complete pre-update backup instead.
 
-Running OrbStack uses the released image pins, not the source checkout. The
+Running OrbStack uses the released image pins, not the source checkout, except
+for the API (below). The
 v0.20.0 upgrade applies migrations 73–78: Git integration and repository
 descriptions, question/document notifications, MFA/IP policies and passkeys.
 Existing accounts start with MFA enforcement off and no IP restrictions; no
@@ -197,6 +198,29 @@ v0.20.0, including disposable task writes and handoff authorization boundaries.
 The machine's npm release-age restriction refused the newly published 0.20.0
 client, so it was not installed by bypassing that restriction. Review and test
 any later client upgrade separately. v0.20.0 still has no stream retention bound.
+
+### The locally built API
+
+The API runs `paca-api-local:0.20.0-local.1`, built from this fork's
+`services/api` (upstream v0.20.0 plus the patches listed under `api_build` in
+`images.lock.json`). Web and realtime stay upstream images. The current patch
+lets a role whose `docs:write` is limited to one folder create documents in that
+folder: document creation is authorized on the document collection with its
+target folder, like document updates, instead of on the whole project. Folder
+create, rename and delete stay project-gated. Agents use this to create their own
+`Handoffs/<stream>` docs. Default Admin and Editor roles are unaffected; a custom
+role granting `docs:write` only on `project/<id>` (without `/*`) can no longer
+create documents.
+
+`python3 paca.py init` from the source tree rebuilds the image (`python3 paca.py
+build-api` does only that); Compose never pulls it (`pull_policy: never`). On an
+upstream update: merge upstream, re-check that each patch still applies and its
+test passes (`go test ./internal/transport/http/router/` in `services/api`), bump
+`API_IMAGE`/`API_VERSION` in `paca.py`, the tag in `compose.yaml` and
+`api_build` in `images.lock.json`, then back up, stop, `init`, start and verify.
+Drop a patch once upstream ships an equivalent change. To roll back without a
+schema change, point `compose.yaml` at the upstream `pacaai/paca-api` pin kept in
+`images.lock.json`.
 
 To install source updates, stop the stack, run `python3 paca.py init` from the repository source directory to refresh installed code/configuration and rebuild tools, then start and verify it. `init` preserves private runtime state.
 

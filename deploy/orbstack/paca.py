@@ -167,6 +167,24 @@ def upload_pending():
     return str(destination)
 
 
+# The API runs from this fork's source: upstream v0.20.0 plus local patches listed
+# in images.lock.json (api_build). Web and realtime stay upstream images.
+API_IMAGE = 'paca-api-local:0.20.0-local.1'
+API_VERSION = 'v0.20.0+local.1'
+
+
+def build_api():
+    """Build the API image from services/api in this checkout. Needs the repository source."""
+    if SOURCE == BASE:
+        raise RuntimeError('build-api needs the repository checkout; run it from deploy/orbstack in the source tree')
+    context = SOURCE.parent.parent / 'services' / 'api'
+    run([DOCKER, '--context', 'orbstack', 'build', '--pull', '-t', API_IMAGE,
+         '--build-arg', 'PACA_VERSION=' + API_VERSION,
+         '--build-arg', 'GOMAXPROCS=4', '--build-arg', 'GOBUILD_P=4', '--build-arg', 'GOMEMLIMIT=2GiB',
+         str(context)])
+    print('Built', API_IMAGE, 'from', context)
+
+
 def init():
     sync_runtime_source()
     for path in [KEYS, BACKUPS, BASE / 'logs']:
@@ -183,6 +201,8 @@ def init():
     if not (KEYS / 'instance-id').exists():
         (KEYS / 'instance-id').write_text(str(uuid.uuid4()) + '\n')
     dc('build', 'network-guard')
+    if SOURCE != BASE:
+        build_api()
     if not (KEYS / 'backup.agekey').exists():
         helper('age-keygen', '-o', '/keys/backup.agekey', capture_output=True, text=True)
     public = helper('age-keygen', '-y', '/keys/backup.agekey', capture_output=True, text=True).stdout
@@ -344,7 +364,7 @@ def main():
     signal.signal(signal.SIGTERM, interrupted)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['init', 'start', 'stop', 'status', 'backup', 'configure-backup',
-                                           'sync-backups', 'verify-network', 'install-schedule'])
+                                           'sync-backups', 'verify-network', 'install-schedule', 'build-api'])
     args = parser.parse_args()
     BASE.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (BASE / '.operation-lock').open('w') as lock:
@@ -376,6 +396,8 @@ def main():
             verify_network()
         elif args.command == 'install-schedule':
             install_schedule()
+        elif args.command == 'build-api':
+            build_api()
 
 
 if __name__ == '__main__':

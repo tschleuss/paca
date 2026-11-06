@@ -104,7 +104,9 @@ services:
 
   api:
     <<: *common
-    image: pacaai/paca-api:0.20.0@sha256:c3953c2eb18b6cf1932671fa3673f3f178e620f447d0f7df2cfc7c4c367a704f
+    # Built locally from this fork (python3 paca.py build-api); see images.lock.json api_build.
+    image: paca-api-local:0.20.0-local.1
+    pull_policy: never
     mem_limit: 512m
     cpus: 1.0
     environment:
