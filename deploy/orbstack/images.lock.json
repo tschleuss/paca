@@ -163,9 +163,9 @@
     ],
     "builder_base": "golang:1.26-alpine@sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696",
     "runtime_base": "alpine:3.21@sha256:87a4361f6c819618a6bafa2ed5228714cb0bb22195d2b49c95eb26799990128a",
-    "built_image_id": "sha256:f0c1d59d6bafc5494330af880fd64d6d2ae4020fdc14d4ef0ccdfe66eeb1cf02",
+    "built_image_id": "sha256:c40784bc0c634b3ffdda9455f3b913cbf70cd3832ebd7134c9bc190ad400e8d6",
     "built_at": "2026-11-06",
     "build": "python3 paca.py build-api (also run by paca.py init from the source tree)",
-    "note": "Base images are resolved at build time by the upstream Dockerfile tags; the digests above are what this build used. pacaai/paca-api:0.20.0 below is kept as the upstream reference and rollback image."
+    "note": "Base images are resolved at build time by the upstream Dockerfile tags; the digests above are what this build used. Builds are not byte-reproducible, so built_image_id is the image deployed on 2026-11-06, not a value a rebuild will match. pacaai/paca-api:0.20.0 below is kept as the upstream reference and rollback image."
   }
 }
