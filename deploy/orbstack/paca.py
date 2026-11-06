@@ -23,6 +23,7 @@ SOURCE = Path(__file__).resolve().parent
 BASE = Path.home() / 'Library' / 'Application Support' / 'Paca-OrbStack'
 KEYS = BASE / 'secrets'
 BACKUPS = BASE / 'backups'
+BACKUP_RETENTION = 7
 NAS_ROOT = Path('/Volumes/Personal/Backups')
 DOCKER = shutil.which('docker') or '/usr/local/bin/docker'
 TOOLS = 'paca-orbstack-tools:1'
@@ -162,6 +163,18 @@ def upload_pending():
     # Only app-owned local copies are pruned, after every NAS copy verified.
     # NAS recovery points are never deleted here.
     for old in sorted(BACKUPS.glob('paca-*.tar.age'))[:-4]:
+        old.unlink()
+        old.with_suffix(old.suffix + '.sha256').unlink(missing_ok=True)
+    # Prune only complete, checksum-verified archives in this instance's NAS folder.
+    verified = []
+    for target in destination.glob('paca-*.tar.age'):
+        checksum_file = target.with_suffix(target.suffix + '.sha256')
+        if not checksum_file.is_file():
+            continue
+        expected = checksum_file.read_text().split()[0]
+        if digest(target) == expected:
+            verified.append(target)
+    for old in sorted(verified, key=lambda path: path.name, reverse=True)[BACKUP_RETENTION:]:
         old.unlink()
         old.with_suffix(old.suffix + '.sha256').unlink(missing_ok=True)
     return str(destination)
