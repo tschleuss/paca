@@ -1,6 +1,8 @@
 {
 	admin off
 	auto_https disable_redirects
+	# IP-address clients may omit SNI; select this site's managed certificate.
+	default_sni {$PACA_HOST}
 }
 
 https://{$PACA_HOST} {

@@ -106,3 +106,10 @@ The first PostgreSQL initialization uses a temporary Unix-socket-only server.
 The current health check and restore script use TCP and wait for an actual SQL
 query, preventing a premature readiness signal while that temporary server stops.
 The NAS kernel also lacks PID-count cgroups; that optional limit is omitted.
+
+## HTTPS when opening the NAS by IP
+
+The gateway sets `default_sni` to PACA_HOST so clients which omit TLS SNI for IP
+addresses still receive the managed IP certificate. After changing Caddyfile,
+restart only the gateway (`sudo docker restart paca-gateway-1` for the project
+registered as paca). Certificate trust warnings are separate from TLS handshakes.
