@@ -10,8 +10,9 @@ https://{$PACA_HOST} {
 	encode gzip
 	# Preserve access-check ordering ahead of every handle block.
 	route {
-		@outside not remote_ip {$LAN_CIDR} 127.0.0.0/8 ::1
-		respond @outside "LAN access only" 403
+		# DSM's Docker proxy may replace LAN source addresses with its bridge gateway.
+		@outside not remote_ip {$LAN_CIDR} {$PACA_DOCKER_GATEWAY:127.0.0.1} 127.0.0.0/8 ::1
+		respond @outside "LAN access only (source: {http.request.remote.host})" 403
 		header {
 			X-Frame-Options "DENY"
 			X-Content-Type-Options "nosniff"

@@ -169,6 +169,7 @@ services:
     environment:
       PACA_HOST: ${PACA_HOST:?Set local hostname or NAS IPv4}
       LAN_CIDR: ${LAN_CIDR:?Set trusted LAN CIDR}
+      PACA_DOCKER_GATEWAY: ${PACA_DOCKER_GATEWAY:-127.0.0.1}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./state/plugins/frontend:/var/www/plugins:ro

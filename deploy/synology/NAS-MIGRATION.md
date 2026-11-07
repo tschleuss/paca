@@ -113,3 +113,21 @@ The gateway sets `default_sni` to PACA_HOST so clients which omit TLS SNI for IP
 addresses still receive the managed IP certificate. After changing Caddyfile,
 restart only the gateway (`sudo docker restart paca-gateway-1` for the project
 registered as paca). Certificate trust warnings are separate from TLS handshakes.
+
+## DSM Docker proxy source addresses
+
+This NAS presents the tested LAN connection to Caddy as `172.23.0.1`. The private
+`.env` sets `PACA_DOCKER_GATEWAY=172.23.0.1`, allowing that single bridge address
+in addition to LAN_CIDR. Caddy cannot distinguish the original clients behind
+that proxy; enforce network-level LAN restrictions using DSM/router firewall rules.
+Do not forward port 8443 from the internet. If Docker recreates the network with
+a different gateway, inspect the denied response before updating this exact value.
+
+Container Manager registered this deployment as `paca` (rather than the script's
+original `paca-synology`). Use `-p paca` for CLI maintenance of the running project.
+After changing `.env` or Compose environment settings, recreate only its gateway:
+
+```sh
+cd /volume2/docker/paca
+sudo docker compose -p paca --env-file .env -f docker-compose.yml up -d --no-deps --force-recreate gateway
+```
